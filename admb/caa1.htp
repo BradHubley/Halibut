@@ -1,0 +1,191 @@
+#if !defined(_CAA1_)
+#  define _CAA1_
+
+class model_data : public ad_comm{
+  ofstream *   pad_report1;
+  data_int debug;
+  data_int all_first_year;
+  data_int all_last_year;
+  data_int all_first_age;
+  data_int all_last_age;
+  data_int select_switch;
+  data_vector select_data;
+  int first_year;
+  int last_year;
+  int first_age;
+  int last_age;
+  data_vector F_full_prior;
+  data_vector start_Z_prior;
+  data_vector year1_prior;
+  data_vector age1_prior;
+  data_int mort_switch;
+  data_vector M_const_prior;
+  data_vector C_Sfullold_prior;
+  data_vector C_log_varLold_prior;
+  data_vector C_log_varRold_prior;
+  data_vector RV_Sfullold_prior;
+  data_vector RV_log_varLold_prior;
+  data_vector RV_log_varRold_prior;
+  data_vector RVspring_Sfull_prior;
+  data_vector RVspring_log_varL_prior;
+  data_vector RVspring_log_varR_prior;
+  data_vector RV_log_qold_prior;
+  data_vector RVspring_log_q_prior;
+  data_number sigma1;
+  data_number sigma2;
+  data_vector like_weight;
+  data_number n_landings;
+  data_vector landings;
+  data_vector landing_year;
+  data_matrix all_mat;
+  data_int n_all_comcaa_years;
+  data_vector all_comcaa_years;
+  data_matrix all_obs_comcaa;
+  data_int n_all_rvcaa_years;
+  data_vector all_rvcaa_years;
+  data_matrix all_obs_rvcaa;
+  data_matrix all_obs_rvwaa;
+  data_int n_all_rvspring_years;
+  data_vector all_rvspring_years;
+  data_matrix all_obs_rvspring;
+  data_int dummy;
+  int j;
+  int i;
+  int age;
+  int year;
+  int phz;
+  double lb;
+  double ub;
+  int len;
+  int qlen;
+  ~model_data();
+  model_data(int argc,char * argv[]);
+  friend class model_parameters;
+};
+
+class model_parameters : public model_data ,
+  public function_minimizer
+{
+public:
+  ~model_parameters();
+  void preliminary_calculations(void);
+  void set_runtime(void);
+  virtual void * mycast(void) {return (void*)this;}
+  static int mc_phase(void)
+  {
+    return initial_params::mc_phase;
+  }
+  static int mceval_phase(void)
+  {
+    return initial_params::mceval_phase;
+  }
+  static int sd_phase(void)
+  {
+    return initial_params::sd_phase;
+  }
+  static int current_phase(void)
+  {
+    return initial_params::current_phase;
+  }
+  static int last_phase(void)
+  {
+    return (initial_params::current_phase
+      >=initial_params::max_number_phases);
+  }
+  static prevariable current_feval(void)
+  {
+    return *objective_function_value::pobjfun;
+  }
+private:
+  ivector integer_control_flags;
+  dvector double_control_flags;
+  param_matrix obs_comcaa;
+  param_matrix obs_rvcaa;
+  param_matrix obs_rvwaa;
+  param_matrix obs_rvspring;
+  param_matrix mat;
+  param_matrix Nage;
+  param_matrix Cage;
+  param_matrix RVage;
+  param_matrix RVspring_age;
+  param_matrix Wtage;
+  param_matrix matbio;
+  param_matrix obs_Cpage;
+  param_matrix obs_RVpage;
+  param_matrix obs_RVspring_page;
+  param_matrix pred_Cpage;
+  param_matrix pred_RVpage;
+  param_matrix pred_RVspring_page;
+  param_matrix F;
+  param_matrix select;
+  param_matrix RV_select;
+  param_matrix RVspring_select;
+  param_vector obs_total_catch;
+  param_vector pred_total_catch;
+  param_vector obs_rvtotal_catch;
+  param_vector pred_rvtotal_catch;
+  param_vector obs_rvspring_total_catch;
+  param_vector pred_rvspring_total_catch;
+  param_stddev_vector ssb;
+  param_vector RVwt_age;
+  param_init_bounded_vector F_full;
+  param_init_bounded_number start_Z;
+  param_init_bounded_vector year1;
+  param_init_bounded_vector age1;
+  param_init_bounded_number M_const;
+  param_init_bounded_number C_Sfullold;
+  param_init_bounded_number C_log_varLold;
+  param_init_bounded_number C_log_varRold;
+  param_init_bounded_number RV_Sfullold;
+  param_init_bounded_number RV_log_varLold;
+  param_init_bounded_number RV_log_varRold;
+  param_init_bounded_number RVspring_Sfull;
+  param_init_bounded_number RVspring_log_varL;
+  param_init_bounded_number RVspring_log_varR;
+  param_init_bounded_number RV_log_qold;
+  param_init_bounded_number RVspring_log_q;
+  param_vector mean_rvwaa;
+  param_vector mean_rvwaa1970;
+  param_vector mean_rvwaa2003;
+  param_matrix M;
+  param_likeprof_number ssb2003;
+  param_number ctotal_like;
+  param_number Cpage_like;
+  param_number rvtotal_like;
+  param_number RVpage_like;
+  param_number rvspring_total_like;
+  param_number RVspring_page_like;
+  param_number ctotal_sigma;
+  param_number rvtotal_sigma;
+  param_matrix Cpage_di;
+  param_matrix RVpage_di;
+  param_matrix RVspring_page_di;
+  param_number age1_last_year_pdf;
+  param_number prior_function_value;
+  param_number likelihood_function_value;
+  objective_function_value ofv;
+public:
+  virtual void userfunction(void);
+  virtual void report(void);
+  virtual void final_calcs(void);
+  model_parameters(int sz,int argc, char * argv[]);
+  virtual void initializationfunction(void){}
+  void initialize_model(void);
+  void MCWrite(void);
+  void Population_Dynamics(void);
+ dvariable LogNormal_LogLike(dvar_vector observed, dvar_vector predicted, double len,double sigma, double type);
+ dvariable calc_sigma(dvar_vector observed, dvar_vector predicted, double len);
+ dvariable Multinomial_LogLike(dvector observed, dvar_vector predicted, double n);
+  void ctotal_Likelihood(void);
+  void Cpage_Likelihood(void);
+  void rvtotal_Likelihood(void);
+  void RVpage_Likelihood(void);
+  void rvspring_total_Likelihood(void);
+  void RVspring_page_Likelihood(void);
+ dvariable Normal(dvariable observed,dvariable mean,double nsigma);
+ dvar_vector Make_select_dhn(int minage, int maxage, dvariable full, dvariable varL, dvariable varR);
+ dvar_vector Make_select_logistic(int minage, int maxage, dvariable full, dvariable varL);
+  void Age1_2007_pdf(void);
+
+};
+#endif
