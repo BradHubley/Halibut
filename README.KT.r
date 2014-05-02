@@ -1,0 +1,1 @@
+## functions for 2010 halibut assessmentsource("fn/plot.caa1.r")source("fn/plot.vpop4r.r")source("fn/plot.vpop10.r")source("fn/getadmout.r")source("fn/getmcout.r")source("fn/make.caa2.r")source("fn/survey.lf.r")source("fn/fs3.r")source("fn/plot.vpop10.mcmc.r")#source("fn/ritrklognormal.R")source("fn/ritrklognormal2.R")source("fn/plot.rk1.r")

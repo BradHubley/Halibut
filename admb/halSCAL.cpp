@@ -1,17 +1,25 @@
-//><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>
-//Programer: Brad Hubley													 
-//Date:	May 12-16, 2014														 
-//Purpose:SCAL for Atlantic Halibut.											 
-//Notes: 				 
-//							 
-//																 
-//><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>
+	/**
+	\def REPORT(object)
+	Prints name and value of \a object on ADMB report %ofstream file.
+	*/
+	#undef REPORT
+	#define REPORT(object) report << #object "\n" << object << endl;
+	#include <admodel.h>
+	#include <time.h>
+	#include <contrib.h>//IF you have ADMB-11
+	//#include<stats.cxx>//If you have ADMB-10 and make sure stats.cxx is in your working directory
+	time_t start,finish;
+	long hour,minute,second;
+	double elapsed_time;
+#include <admodel.h>
 
-DATA_SECTION
-	int sim;
-	int rseed;
-	
-	LOCAL_CALCS
+  extern "C"  {
+    void ad_boundf(int i);
+  }
+#include <halSCAL.htp>
+
+model_data::model_data(int argc,char * argv[]) : ad_comm(argc,argv)
+{
 		sim=0;
 		rseed=0;
 		int on,opt;
@@ -20,152 +28,223 @@ DATA_SECTION
 			sim=1;
 			rseed=atoi(ad_comm::argv[on+1]);
 		}
-	END_CALCS
-
-	// dimensions
-	init_int syr;
-	init_int eyr;
-	init_int nage;
-	init_int nsexes;
-	init_int nlbin;
-	init_number minbin;
-	init_number stepbin;
-	
-	// Growth parameters
-	init_vector wa(1,nsexes);
-	init_vector wb(1,nsexes);
-	init_vector linf(1,nsexes);
-	init_vector vbk(1,nsexes);
-	init_vector t0(1,nsexes);
-	init_vector laaF(1,nage);					// length-at-age female
-	init_vector laaM(1,nage);					// length-at-age male
-	init_vector laaF_sigma(1,nage);
-	init_vector laaM_sigma(1,nage);
-
-	// Survey data
-	init_vector RVindex(syr,eyr);
-	init_matrix RVcatlen(syr,eyr,1,nlbin);
-	init_int HSsyr;
-	init_vector HSindex(HSsyr,eyr);
-	init_matrix HScatlenF(HSsyr,eyr,1,nlbin);
-	init_matrix HScatlenM(HSsyr,eyr,1,nlbin);
-	
-	// Fishery data
-	init_number iro;
-	init_number icr;
-	init_vector ct(syr,eyr);
-	init_number irbar;
-	init_number ifbar;
-	init_number iahat;
-	init_number ighat;
-	init_int eof;
-	int iter;
-	!!iter=0;
-
-	LOCAL_CALCS
+  syr.allocate("syr");
+  eyr.allocate("eyr");
+  nage.allocate("nage");
+  nsexes.allocate("nsexes");
+  nlbin.allocate("nlbin");
+  minbin.allocate("minbin");
+  stepbin.allocate("stepbin");
+  wa.allocate(1,nsexes,"wa");
+  wb.allocate(1,nsexes,"wb");
+  linf.allocate(1,nsexes,"linf");
+  vbk.allocate(1,nsexes,"vbk");
+  t0.allocate(1,nsexes,"t0");
+  laaF.allocate(1,nage,"laaF");
+  laaM.allocate(1,nage,"laaM");
+  laaF_sigma.allocate(1,nage,"laaF_sigma");
+  laaM_sigma.allocate(1,nage,"laaM_sigma");
+  RVindex.allocate(syr,eyr,"RVindex");
+  RVcatlen.allocate(syr,eyr,1,nlbin,"RVcatlen");
+  HSsyr.allocate("HSsyr");
+  HSindex.allocate(HSsyr,eyr,"HSindex");
+  HScatlenF.allocate(HSsyr,eyr,1,nlbin,"HScatlenF");
+  HScatlenM.allocate(HSsyr,eyr,1,nlbin,"HScatlenM");
+  LLctF.allocate(syr,eyr,"LLctF");
+  LLctM.allocate(syr,eyr,"LLctM");
+  OTct.allocate(syr,eyr,"OTct");
+  LLsyr.allocate("LLsyr");
+  LLcatlenF.allocate(LLsyr,eyr,1,nlbin,"LLcatlenF");
+  LLcatlenM.allocate(LLsyr,eyr,1,nlbin,"LLcatlenM");
+  OTsyr.allocate("OTsyr");
+  OTcatlen.allocate(OTsyr,eyr,1,nlbin,"OTcatlen");
+  iro.allocate("iro");
+  icr.allocate("icr");
+  ct.allocate(syr,eyr,"ct");
+  irbar.allocate("irbar");
+  ifbar.allocate("ifbar");
+  iahat.allocate("iahat");
+  ighat.allocate("ighat");
+  eof.allocate("eof");
+iter=0;
 		if(eof!=999)
 		{
 			cout<<"Error reading data.\n Fix it."<<endl;
 			ad_exit(1);
+		}else{
+			cout<<"Reading data successful."<<endl;
+			ad_exit(1);
 		}
-	END_CALCS
-	vector age(1,nage);
-	vector la(1,nage);
-	vector wa(1,nage);
-	vector fa(1,nage);
-	number m;
-	LOCAL_CALCS
+  age.allocate(1,nage);
+  la.allocate(1,nage);
+  wa.allocate(1,nage);
+  fa.allocate(1,nage);
 		m=1.2*vbk;
 		age.fill_seqadd(1,1);
 		la=linf*(1.-mfexp(-vbk*age));
 		wa=wla*pow(la,wlb);
 		//weight at age * maturity at age
 		fa=elem_prod(wa,plogis(age,log(3)/vbk,0.1*log(3)/vbk));
-	END_CALCS
-	//load in data for simulations
-	!!ad_comm::change_datafile_name("SCAL.ctl");
-	init_number simsig;
-	init_number simtau;
-	init_number simqo;
-	init_number simao;
-	init_number simro;
-	init_number simcr;
-	init_number simrbar;
-	init_number simahat;
-	init_number simghat;
-	init_number simcvgrow;
-	init_vector simF(syr,eyr);
-	init_int eofc;
-	LOCAL_CALCS
+ad_comm::change_datafile_name("SCAL.ctl");
+  simsig.allocate("simsig");
+  simtau.allocate("simtau");
+  simqo.allocate("simqo");
+  simao.allocate("simao");
+  simro.allocate("simro");
+  simcr.allocate("simcr");
+  simrbar.allocate("simrbar");
+  simahat.allocate("simahat");
+  simghat.allocate("simghat");
+  simcvgrow.allocate("simcvgrow");
+  simF.allocate(syr,eyr,"simF");
+  eofc.allocate("eofc");
 		if(eofc!=999)
 		{
 			cout<<"Error reading control file.\n Fix it."<<endl;
 			ad_exit(1);
 		}
-	END_CALCS
+}
 
-PARAMETER_SECTION
-	init_number log_ro(4);
-	init_number log_cr(5);
-	init_number log_rbar;
-	init_number log_fbar;
-	init_bounded_number ahat(0,nage);
-	init_bounded_number ghat(0,5);
-	init_number ptdev;
-	init_bounded_number rho(0,1);
-	init_bounded_number cvgrow(0,1);
-	init_bounded_dev_vector wt(syr-nage,eyr,-10.,10.,2);
-	init_bounded_dev_vector log_ft_dev(syr,eyr,-10.,10.,3);
-	objective_function_value nll;
-	!!log_ro=log(iro);
-	!!log_cr=log(icr);
-	!!log_rbar=log(irbar);
-	!!log_fbar=log(ifbar);
-	!!rho=0.5;
-	!!cvgrow=0.2;
-	!!ptdev=log(1./0.08);
-	!!ahat=iahat;
-	!!ghat=ighat;
-	number ro;
-	number cr;
-	number rbar;
-	number fbar;
-	number so;
-	number beta;
-	number q;
-	number fmsy;
-	number msy;
-	number bmsy;
-	number sig;
-	number tau;
-	sdreport_number tdev;
+model_parameters::model_parameters(int sz,int argc,char * argv[]) : 
+ model_data(argc,argv) , function_minimizer(sz)
+{
+  initializationfunction();
+  log_ro.allocate(4,"log_ro");
+  log_cr.allocate(5,"log_cr");
+  log_rbar.allocate("log_rbar");
+  log_fbar.allocate("log_fbar");
+  ahat.allocate(0,nage,"ahat");
+  ghat.allocate(0,5,"ghat");
+  ptdev.allocate("ptdev");
+  rho.allocate(0,1,"rho");
+  cvgrow.allocate(0,1,"cvgrow");
+  wt.allocate(syr-nage,eyr,-10.,10.,2,"wt");
+  log_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_ft_dev");
+  nll.allocate("nll");
+  prior_function_value.allocate("prior_function_value");
+  likelihood_function_value.allocate("likelihood_function_value");
+log_ro=log(iro);
+log_cr=log(icr);
+log_rbar=log(irbar);
+log_fbar=log(ifbar);
+rho=0.5;
+cvgrow=0.2;
+ptdev=log(1./0.08);
+ahat=iahat;
+ghat=ighat;
+  ro.allocate("ro");
+  #ifndef NO_AD_INITIALIZE
+  ro.initialize();
+  #endif
+  cr.allocate("cr");
+  #ifndef NO_AD_INITIALIZE
+  cr.initialize();
+  #endif
+  rbar.allocate("rbar");
+  #ifndef NO_AD_INITIALIZE
+  rbar.initialize();
+  #endif
+  fbar.allocate("fbar");
+  #ifndef NO_AD_INITIALIZE
+  fbar.initialize();
+  #endif
+  so.allocate("so");
+  #ifndef NO_AD_INITIALIZE
+  so.initialize();
+  #endif
+  beta.allocate("beta");
+  #ifndef NO_AD_INITIALIZE
+  beta.initialize();
+  #endif
+  q.allocate("q");
+  #ifndef NO_AD_INITIALIZE
+  q.initialize();
+  #endif
+  fmsy.allocate("fmsy");
+  #ifndef NO_AD_INITIALIZE
+  fmsy.initialize();
+  #endif
+  msy.allocate("msy");
+  #ifndef NO_AD_INITIALIZE
+  msy.initialize();
+  #endif
+  bmsy.allocate("bmsy");
+  #ifndef NO_AD_INITIALIZE
+  bmsy.initialize();
+  #endif
+  sig.allocate("sig");
+  #ifndef NO_AD_INITIALIZE
+  sig.initialize();
+  #endif
+  tau.allocate("tau");
+  #ifndef NO_AD_INITIALIZE
+  tau.initialize();
+  #endif
+  tdev.allocate("tdev");
+  va.allocate(1,nage,"va");
+  #ifndef NO_AD_INITIALIZE
+    va.initialize();
+  #endif
+  ft.allocate(syr,eyr,"ft");
+  #ifndef NO_AD_INITIALIZE
+    ft.initialize();
+  #endif
+  bt.allocate(syr,eyr+1,"bt");
+  #ifndef NO_AD_INITIALIZE
+    bt.initialize();
+  #endif
+  ct_hat.allocate(syr,eyr,"ct_hat");
+  #ifndef NO_AD_INITIALIZE
+    ct_hat.initialize();
+  #endif
+  ct_resid.allocate(syr,eyr,"ct_resid");
+  #ifndef NO_AD_INITIALIZE
+    ct_resid.initialize();
+  #endif
+  yt_resid.allocate(syr,eyr,"yt_resid");
+  #ifndef NO_AD_INITIALIZE
+    yt_resid.initialize();
+  #endif
+  rt.allocate(syr+1,eyr,"rt");
+  #ifndef NO_AD_INITIALIZE
+    rt.initialize();
+  #endif
+  rt_resid.allocate(syr+1,eyr,"rt_resid");
+  #ifndef NO_AD_INITIALIZE
+    rt_resid.initialize();
+  #endif
+  Nt.allocate(syr,eyr+1,1,nage,"Nt");
+  #ifndef NO_AD_INITIALIZE
+    Nt.initialize();
+  #endif
+  Zt.allocate(syr,eyr,1,nage,"Zt");
+  #ifndef NO_AD_INITIALIZE
+    Zt.initialize();
+  #endif
+  plhat.allocate(syr,eyr,1,nlbin,"plhat");
+  #ifndef NO_AD_INITIALIZE
+    plhat.initialize();
+  #endif
+}
 
-	vector va(1,nage);
-	vector ft(syr,eyr);
-	vector bt(syr,eyr+1);
-	vector ct_hat(syr,eyr);
-	vector ct_resid(syr,eyr);
-	vector yt_resid(syr,eyr);
-	vector rt(syr+1,eyr);
-	vector rt_resid(syr+1,eyr);
+void model_parameters::preliminary_calculations(void)
+{
 
-	matrix Nt(syr,eyr+1,1,nage);
-	matrix Zt(syr,eyr,1,nage);
-	matrix plhat(syr,eyr,1,nlbin);
-
-PRELIMINARY_CALCS_SECTION
+  admaster_slave_variable_interface(*this);
   if(sim)
   {
   	run_data_simulation();
   }
+}
 
-PROCEDURE_SECTION
+void model_parameters::userfunction(void)
+{
+  nll =0.0;
 	initialization();
 	statedynamics();
 	observation_model();
 	stock_recruit_model();
 	objective_function();
-
 	if(mceval_phase())
 	{ 
 		forecast();
@@ -177,13 +256,17 @@ PROCEDURE_SECTION
 		forecast();
 		get_CF(value(fmsy),value(msy),value(bmsy));
 	} 
+}
 
-FUNCTION initialization
+void model_parameters::initialization(void)
+{
 	va=plogis(age,ahat,ghat);
 	ft=mfexp(log_fbar+log_ft_dev);
 	Zt=m+outer_prod(ft,va);
+}
 
-FUNCTION statedynamics
+void model_parameters::statedynamics(void)
+{
 	dvar_vector lxo=pow(mfexp(-m),age-1.);
 	lxo(nage)/=(1.-mfexp(-m));
 	Nt(syr,1)=mfexp(log_rbar+wt(syr-1));
@@ -195,8 +278,10 @@ FUNCTION statedynamics
 		Nt(i+1,nage)+=Nt(i,nage)*mfexp(-Zt(i,nage));
 	}
 	bt=Nt*elem_prod(wa,va);
+}
 
-FUNCTION observation_model
+void model_parameters::observation_model(void)
+{
 	dvar_matrix C(syr,eyr,1,nage);
 	dvar_matrix F(syr,eyr,1,nage);
 	F=outer_prod(ft,va);
@@ -236,9 +321,10 @@ FUNCTION observation_model
 	}
 	//cout<<plhat(syr)<<endl;
 	//ad_exit(1);
+}
 
-
-FUNCTION stock_recruit_model
+void model_parameters::stock_recruit_model(void)
+{
 	ro=mfexp(log_ro);
 	cr=mfexp(log_cr)+1.;
 	dvar_vector lxo=pow(mfexp(-m),age-1.);
@@ -252,8 +338,10 @@ FUNCTION stock_recruit_model
 	dvar_vector tmp_rt=++elem_div(nmr,den);
 	rt=column(Nt.sub(syr+1,eyr),1);
 	rt_resid=log(tmp_rt)-log(rt);
+}
 
-FUNCTION objective_function 
+void model_parameters::objective_function(void)
+{
 	dvar_vector nll_vec(1,4);
 	tdev=sqrt(1./mfexp(ptdev));
 	sig=sqrt(rho*1./mfexp(ptdev));//process error sd.dev
@@ -268,7 +356,6 @@ FUNCTION objective_function
 	p_vec.initialize();
 	dvariable h=cr/(4.+cr);
 	p_vec(1)=dbeta((h-0.2)/0.8,2,2);
-	
 	if(last_phase())
 	{
 		p_vec(3)=dnorm(wt,2);
@@ -278,12 +365,13 @@ FUNCTION objective_function
 	{
 		p_vec(3)=100.*norm2(wt);
 		p_vec(4)=100.*norm2(log_ft_dev);
-
 	}
 	p_vec(5)=dbeta(rho,50,50);
 	nll=sum(nll_vec)+sum(p_vec);
+}
 
-FUNCTION mcmc_output
+void model_parameters::mcmc_output(void)
+{
 	if(iter==0)
 	{
 		ofstream ofs("refpar.mcmc");
@@ -295,10 +383,14 @@ FUNCTION mcmc_output
 	double bratio=value(Nt(eyr)*wa/bmsy);
 	ofstream ofs("refpar.mcmc",ios::app);
 	ofs<<fmsy<<"\t"<<bmsy<<"\t"<<msy<<"\t"<<bratio<<"\t"<<fratio<<endl;
+}
 
-FUNCTION forecast
+void model_parameters::forecast(void)
+{
+}
 
-FUNCTION run_data_simulation
+void model_parameters::run_data_simulation(void)
+{
 	random_number_generator rng(rseed);
 	dmatrix C(syr,eyr,1,nage);
 	dvector tmp(syr-nage,eyr);
@@ -330,7 +422,6 @@ FUNCTION run_data_simulation
 	Nt(syr,1)=mfexp(log_rbar+wt(syr-1));
 	for(int j=2;j<=nage;j++)Nt(syr,j)=mfexp(log_rbar+wt(syr-j))*lxo(j);
 	ft=simF;
-
 	//p(l|a)
 	dvector sdl=la*simcvgrow;
 	//cout<<sdl<<endl;
@@ -383,10 +474,10 @@ FUNCTION run_data_simulation
 	//cout<<""<<endl;
 	//cout<<plt<<endl;
 	//ad_exit(1);
+}
 
-
-
-FUNCTION void calc_partials(const double& fe, double& phie, double& phif, double& phiq, double& dphif_df, double& dphiq_df, double& dRe_df)
+void model_parameters::calc_partials(const double& fe, double& phie, double& phif, double& phiq, double& dphif_df, double& dphiq_df, double& dRe_df)
+{
 	//Use this function to calculate the partial derivatives (Table 2 in Martell et al. 2008)
 	//Arguments: fe=fishing rate
 	int i;
@@ -397,7 +488,6 @@ FUNCTION void calc_partials(const double& fe, double& phie, double& phif, double
 	dvector sa=1.-exp(-za);
 	dvector qa=elem_prod(elem_div(value(va),za),sa);
 	double dlz_df=0;
-
 	lz[1]=1.0; 
 	dphiq_df=0; dphif_df=0;
 	phie=(sum(elem_prod(lx,fa)));
@@ -422,10 +512,10 @@ FUNCTION void calc_partials(const double& fe, double& phie, double& phif, double
 	//dvector t2=elem_div(elem_prod(elem_prod(lz,value(va)),wa),za);
 	//dvector t3=exp(-za)-elem_div(sa,za);
 	//dphiq_df=sum(elem_prod(elem_prod(wa,qa),dlz_df)+elem_prod(t2,t3));
+}
 
-
-
-FUNCTION void get_CF(double& fe, double& msy,double& bmsy)
+void model_parameters::get_CF(double& fe, double& msy,double& bmsy)
+{
 	//This function uses Newton-Raphson method to iteratively solve for F*
 	//Then calculates C* given F* (See eq 1.3 in Martell 2008 CJFAS)
 	int iter;
@@ -446,11 +536,17 @@ FUNCTION void get_CF(double& fe, double& msy,double& bmsy)
 	msy=fe*re*phiq;
 	bmsy=re*phif;
 	//cout<<"Fe "<<fe<<endl;
+}
 
-
-
-REPORT_SECTION
-	
+void model_parameters::report()
+{
+ adstring ad_tmp=initial_params::get_reportfile_name();
+  ofstream report((char*)(adprogram_name + ad_tmp));
+  if (!report)
+  {
+    cerr << "error trying to open report file"  << adprogram_name << ".rep";
+    return;
+  }
 	//double fmsy;
 	//double msy;
 	//double bmsy;
@@ -475,34 +571,10 @@ REPORT_SECTION
 	REPORT(fmsy);
 	REPORT(msy);
 	REPORT(bmsy);
+}
 
-TOP_OF_MAIN_SECTION
-	
-	time(&start);
-	arrmblsize = 50000000;
-	gradient_structure::set_GRADSTACK_BUFFER_SIZE(1.e7);
-	gradient_structure::set_CMPDIF_BUFFER_SIZE(1.e7);
-	gradient_structure::set_MAX_NVAR_OFFSET(5000);
-	gradient_structure::set_NUM_DEPENDENT_VARIABLES(5000);
-
-
-GLOBALS_SECTION
-	/**
-	\def REPORT(object)
-	Prints name and value of \a object on ADMB report %ofstream file.
-	*/
-	#undef REPORT
-	#define REPORT(object) report << #object "\n" << object << endl;
-
-	#include <admodel.h>
-	#include <time.h>
-	#include <contrib.h>//IF you have ADMB-11
-	//#include<stats.cxx>//If you have ADMB-10 and make sure stats.cxx is in your working directory
-	time_t start,finish;
-	long hour,minute,second;
-	double elapsed_time;
-
-FINAL_SECTION
+void model_parameters::final_calcs()
+{
 	time(&finish);
 	elapsed_time=difftime(finish,start);
 	hour=long(elapsed_time)/3600;
@@ -514,5 +586,52 @@ FINAL_SECTION
 	cout<<"--Runtime: ";
 	cout<<hour<<" hours, "<<minute<<" minutes, "<<second<<" seconds"<<endl;
 	cout<<"*******************************************"<<endl;
+}
+
+model_data::~model_data()
+{}
+
+model_parameters::~model_parameters()
+{}
+
+void model_parameters::set_runtime(void){}
+
+#ifdef _BORLANDC_
+  extern unsigned _stklen=10000U;
+#endif
 
 
+#ifdef __ZTC__
+  extern unsigned int _stack=10000U;
+#endif
+
+  long int arrmblsize=0;
+
+int main(int argc,char * argv[])
+{
+    ad_set_new_handler();
+  ad_exit=&ad_boundf;
+	
+	time(&start);
+	arrmblsize = 50000000;
+	gradient_structure::set_GRADSTACK_BUFFER_SIZE(1.e7);
+	gradient_structure::set_CMPDIF_BUFFER_SIZE(1.e7);
+	gradient_structure::set_MAX_NVAR_OFFSET(5000);
+	gradient_structure::set_NUM_DEPENDENT_VARIABLES(5000);
+    gradient_structure::set_NO_DERIVATIVES();
+    gradient_structure::set_YES_SAVE_VARIABLES_VALUES();
+    if (!arrmblsize) arrmblsize=15000000;
+    model_parameters mp(arrmblsize,argc,argv);
+    mp.iprint=10;
+    mp.preliminary_calculations();
+    mp.computations(argc,argv);
+    return 0;
+}
+
+extern "C"  {
+  void ad_boundf(int i)
+  {
+    /* so we can stop here */
+    exit(i);
+  }
+}

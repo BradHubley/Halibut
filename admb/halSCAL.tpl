@@ -31,29 +31,36 @@ DATA_SECTION
 	init_number minbin;
 	init_number stepbin;
 	
-	// Growth parameters
-	init_vector wa(1,nsexes);
-	init_vector wb(1,nsexes);
+	// Survey data
+	init_vector RVindex(syr,eyr);				// summer RV survey index in stratified total numbers	
+	init_matrix RVcatlen(syr,eyr,1,nlbin);		// summer RV survey catch-at-length in stratified total numbers	
+	init_int HSsyr;
+	init_vector HSindex(HSsyr,eyr);				// halibut survey index glm results
+	init_matrix HScatlenF(HSsyr,eyr,1,nlbin);	// halibut survey catch-at-length females
+	init_matrix HScatlenM(HSsyr,eyr,1,nlbin);	// halibut survey catch-at-length males
+	
+	// Fishery data
+	init_vector LLctF(syr,eyr);					// longline catch, females (tonnes)
+	init_vector LLctM(syr,eyr);					// longline catch, males (tonnes)
+	init_vector OTct(syr,eyr);					// otter trawl catch (tonnes)
+	init_int LLsyr;
+	init_matrix LLcatlenF(LLsyr,eyr,1,nlbin);	// longline catch-at-length, females
+	init_matrix LLcatlenM(LLsyr,eyr,1,nlbin);	// longline catch-at-length, males
+	init_int OTsyr;
+	init_matrix OTcatlen(OTsyr,eyr,1,nlbin);	// otter trawl catch-at-length
+	
+	// LH parameters
+	init_vector lwa(1,nsexes);
+	init_vector lwb(1,nsexes);
 	init_vector linf(1,nsexes);
 	init_vector vbk(1,nsexes);
 	init_vector t0(1,nsexes);
-	init_vector laaF(1,nage);					// length-at-age female
-	init_vector laaM(1,nage);					// length-at-age male
-	init_vector laaF_sigma(1,nage);
-	init_vector laaM_sigma(1,nage);
+	init_matrix laa(1,nsexes,1,nage);			// length-at-age
+	init_matrix laa_sigma(1,nsexes,1,nage);
 
-	// Survey data
-	init_vector RVindex(syr,eyr);
-	init_matrix RVcatlen(syr,eyr,1,nlbin);
-	init_int HSsyr;
-	init_vector HSindex(HSsyr,eyr);
-	init_matrix HScatlenF(HSsyr,eyr,1,nlbin);
-	init_matrix HScatlenM(HSsyr,eyr,1,nlbin);
-	
-	// Fishery data
+	// Initilaization parameters
 	init_number iro;
 	init_number icr;
-	init_vector ct(syr,eyr);
 	init_number irbar;
 	init_number ifbar;
 	init_number iahat;
@@ -67,23 +74,26 @@ DATA_SECTION
 		{
 			cout<<"Error reading data.\n Fix it."<<endl;
 			ad_exit(1);
+		}else{
+			cout<<"Reading data successful."<<endl;
+			ad_exit(1);
 		}
 	END_CALCS
-	vector age(1,nage);
-	vector la(1,nage);
-	vector wa(1,nage);
-	vector fa(1,nage);
-	number m;
+	matrix ma(1,nsexes,1,nage);					//maturity-at-age
+	matrix wa(1,nsexes,1,nage);					//weight-at-age
+	matrix fa(1,nsexes,1,nage);					//fecundity-at-age
 	LOCAL_CALCS
-		m=1.2*vbk;
-		age.fill_seqadd(1,1);
-		la=linf*(1.-mfexp(-vbk*age));
-		wa=wla*pow(la,wlb);
-		//weight at age * maturity at age
-		fa=elem_prod(wa,plogis(age,log(3)/vbk,0.1*log(3)/vbk));
+		for (sex=1;sex<=N_sexes;sex++){
+			for (age=first_age;age<=last_age;age++){
+				ma(sex,age)=1/(1+exp(-matb(sex)*((linf(sex)-(linf(sex)-t0(sex))*exp(-vbk(sex)*age))-mata(sex))));
+			}
+			wa(sex)=lwa(sex)*pow(laa(sex),lwb(sex))/1000; 	//convert to kg
+		}			
+		fa(sex)=elem_prod(wa(sex),mat(sex));
 	END_CALCS
-	//load in data for simulations
-	!!ad_comm::change_datafile_name("SCAL.ctl");
+	
+	// ****Simulations****
+	!!ad_comm::change_datafile_name("halSCAL.ctl");
 	init_number simsig;
 	init_number simtau;
 	init_number simqo;
