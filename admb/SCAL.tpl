@@ -1,7 +1,7 @@
 //><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>
 //Programer: Brad Hubley													 
 //Date:	May 12-16, 2014														 
-//Purpose:SCAL for Atlantic Halibut.											 
+//Purpose:SCA simulator.											 
 //Notes: 				 
 //							 
 //																 
@@ -22,38 +22,22 @@ DATA_SECTION
 		}
 	END_CALCS
 
-	// dimensions
 	init_int syr;
 	init_int eyr;
 	init_int nage;
-	init_int nsexes;
+	init_number linf;
+	init_number vbk;
+	init_number wla;
+	init_number wlb;
 	init_int nlbin;
 	init_number minbin;
 	init_number stepbin;
-	
-	// Growth parameters
-	init_vector wa(1,nsexes);
-	init_vector wb(1,nsexes);
-	init_vector linf(1,nsexes);
-	init_vector vbk(1,nsexes);
-	init_vector t0(1,nsexes);
-	init_vector laaF(1,nage);					// length-at-age female
-	init_vector laaM(1,nage);					// length-at-age male
-	init_vector laaF_sigma(1,nage);
-	init_vector laaM_sigma(1,nage);
 
-	// Survey data
-	init_vector RVindex(syr,eyr);
-	init_matrix RVcatlen(syr,eyr,1,nlbin);
-	init_int HSsyr;
-	init_vector HSindex(HSsyr,eyr);
-	init_matrix HScatlenF(HSsyr,eyr,1,nlbin);
-	init_matrix HScatlenM(HSsyr,eyr,1,nlbin);
-	
-	// Fishery data
+	init_vector yt(syr,eyr);
+	init_vector ct(syr,eyr);
+	init_matrix plt(syr,eyr,1,nlbin);
 	init_number iro;
 	init_number icr;
-	init_vector ct(syr,eyr);
 	init_number irbar;
 	init_number ifbar;
 	init_number iahat;
@@ -75,7 +59,7 @@ DATA_SECTION
 	vector fa(1,nage);
 	number m;
 	LOCAL_CALCS
-		m=1.2*vbk;
+		m=0.02;
 		age.fill_seqadd(1,1);
 		la=linf*(1.-mfexp(-vbk*age));
 		wa=wla*pow(la,wlb);
@@ -180,6 +164,7 @@ PROCEDURE_SECTION
 
 FUNCTION initialization
 	va=plogis(age,ahat,ghat);
+	va(1)=0;
 	ft=mfexp(log_fbar+log_ft_dev);
 	Zt=m+outer_prod(ft,va);
 
@@ -202,6 +187,16 @@ FUNCTION observation_model
 	F=outer_prod(ft,va);
 	C=elem_prod(elem_div(F,Zt),elem_prod(1.-mfexp(-Zt),Nt));
 	ct_hat=C*wa;
+			cout<<va<<endl;
+			cout<<F<<endl;
+			cout<<Zt<<endl;
+			cout<<elem_div(F,Zt)<<endl;
+			cout<<elem_prod(1.-mfexp(-Zt),Nt)<<endl;
+			cout<<'C'<<endl;
+			cout<<C<<endl;
+			cout<<ct<<endl;
+			cout<<ft<<endl;
+			ad_exit(1);
 	//catch residuals
 	ct_resid=log(ct)-log(ct_hat);
 	//cpue residuals ala waters and ludwig 1994
