@@ -40,14 +40,14 @@ model_data::model_data(int argc,char * argv[]) : ad_comm(argc,argv)
   RVcatlen.allocate(syr,eyr,1,nlbin,"RVcatlen");
   HSsyr.allocate("HSsyr");
   HSindex.allocate(HSsyr,eyr,"HSindex");
-  HScatlenM.allocate(HSsyr,eyr,1,nlbin,"HScatlenM");
-  HScatlenF.allocate(HSsyr,eyr,1,nlbin,"HScatlenF");
+  HSMcatlen.allocate(HSsyr,eyr,1,nlbin,"HSMcatlen");
+  HSFcatlen.allocate(HSsyr,eyr,1,nlbin,"HSFcatlen");
   LLctM.allocate(syr,eyr,"LLctM");
   LLctF.allocate(syr,eyr,"LLctF");
   OTct.allocate(syr,eyr,"OTct");
   LLsyr.allocate("LLsyr");
-  LLcatlenM.allocate(LLsyr,eyr,1,nlbin2,"LLcatlenM");
-  LLcatlenF.allocate(LLsyr,eyr,1,nlbin2,"LLcatlenF");
+  LLMcatlen.allocate(LLsyr,eyr,1,nlbin2,"LLMcatlen");
+  LLFcatlen.allocate(LLsyr,eyr,1,nlbin2,"LLFcatlen");
   OTsyr.allocate("OTsyr");
   OTcatlen.allocate(OTsyr,eyr,1,nlbin2,"OTcatlen");
   lwa.allocate(1,nsexes,"lwa");
@@ -55,8 +55,10 @@ model_data::model_data(int argc,char * argv[]) : ad_comm(argc,argv)
   linf.allocate(1,nsexes,"linf");
   vbk.allocate(1,nsexes,"vbk");
   t0.allocate(1,nsexes,"t0");
-  laa.allocate(1,nsexes,1,nage,"laa");
-  laa_sigma.allocate(1,nsexes,1,nage,"laa_sigma");
+  laaM.allocate(1,nage,"laaM");
+  laaF.allocate(1,nage,"laaF");
+  laaM_sigma.allocate(1,nage,"laaM_sigma");
+  laaF_sigma.allocate(1,nage,"laaF_sigma");
   mata.allocate(1,nsexes,"mata");
   matb.allocate(1,nsexes,"matb");
   iro.allocate("iro");
@@ -86,8 +88,8 @@ mF=1.2*vbk(2);
 		for (int a=1;a<=nage;a++){
 			ma(a)=1/(1+exp(-matb(2)*((linf(2)-(linf(2)-t0(2))*exp(-vbk(2)*a))-mata(2))));
 		}
-		waM=lwa(1)*pow(laa(1),lwb(1))/1000; 	//convert to kg
-		waF=lwa(2)*pow(laa(2),lwb(2))/1000; 
+		waM=lwa(1)*pow(laaF,lwb(1))/1000; 	//convert to kg
+		waF=lwa(2)*pow(laaM,lwb(2))/1000; 
 		fa=elem_prod(waF,ma);
 }
 
@@ -104,15 +106,16 @@ model_parameters::model_parameters(int sz,int argc,char * argv[]) :
   log_LLF_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_LLF_ft_dev");
   log_LLM_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_LLM_ft_dev");
   log_OT_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_OT_ft_dev");
+  ptdev.allocate("ptdev");
   ahat.allocate(0,nage,"ahat");
   ghat.allocate(0,5,"ghat");
-  ptdev.allocate("ptdev");
   rho.allocate(0,1,"rho");
   cvgrow.allocate(0,1,"cvgrow");
   wt.allocate(syr-nage,eyr,-10.,10.,2,"wt");
-  nll.allocate("nll");
+  ofv.allocate("ofv");
   prior_function_value.allocate("prior_function_value");
   likelihood_function_value.allocate("likelihood_function_value");
+  tdev.allocate("tdev");
 log_ro=log(iro);
 log_cr=log(icr);
 log_rbar=log(irbar);
@@ -120,7 +123,7 @@ log_LLF_fbar=log(ifbar);
 log_LLM_fbar=log(ifbar);
 log_OT_fbar=log(ifbar);
 rho=0.5;
-cvgrow=0.2;
+cvgrow=0.1;
 ptdev=log(1./0.08);
 ahat=iahat;
 ghat=ighat;
@@ -148,9 +151,13 @@ ghat=ighat;
   #ifndef NO_AD_INITIALIZE
   beta.initialize();
   #endif
-  q.allocate("q");
+  RVq.allocate("RVq");
   #ifndef NO_AD_INITIALIZE
-  q.initialize();
+  RVq.initialize();
+  #endif
+  HSq.allocate("HSq");
+  #ifndef NO_AD_INITIALIZE
+  HSq.initialize();
   #endif
   fmsy.allocate("fmsy");
   #ifndef NO_AD_INITIALIZE
@@ -172,7 +179,6 @@ ghat=ighat;
   #ifndef NO_AD_INITIALIZE
   tau.initialize();
   #endif
-  tdev.allocate("tdev");
   HSM_va.allocate(1,nage,"HSM_va");
   #ifndef NO_AD_INITIALIZE
     HSM_va.initialize();
@@ -241,9 +247,13 @@ ghat=ighat;
   #ifndef NO_AD_INITIALIZE
     OT_ct_resid.initialize();
   #endif
-  yt_resid.allocate(syr,eyr,"yt_resid");
+  RV_resid.allocate(syr,eyr,"RV_resid");
   #ifndef NO_AD_INITIALIZE
-    yt_resid.initialize();
+    RV_resid.initialize();
+  #endif
+  HS_resid.allocate(HSsyr,eyr,"HS_resid");
+  #ifndef NO_AD_INITIALIZE
+    HS_resid.initialize();
   #endif
   rt.allocate(syr+1,eyr,"rt");
   #ifndef NO_AD_INITIALIZE
@@ -252,6 +262,18 @@ ghat=ighat;
   rt_resid.allocate(syr+1,eyr,"rt_resid");
   #ifndef NO_AD_INITIALIZE
     rt_resid.initialize();
+  #endif
+  HS_pred.allocate(syr,eyr+1,"HS_pred");
+  #ifndef NO_AD_INITIALIZE
+    HS_pred.initialize();
+  #endif
+  RV_pred.allocate(syr,eyr+1,"RV_pred");
+  #ifndef NO_AD_INITIALIZE
+    RV_pred.initialize();
+  #endif
+  lbins.allocate(1,nlbin,"lbins");
+  #ifndef NO_AD_INITIALIZE
+    lbins.initialize();
   #endif
   M_Nat.allocate(syr,eyr+1,1,nage,"M_Nat");
   #ifndef NO_AD_INITIALIZE
@@ -281,9 +303,37 @@ ghat=ighat;
   #ifndef NO_AD_INITIALIZE
     F_Zat.initialize();
   #endif
-  plhat.allocate(syr,eyr,1,nlbin,"plhat");
+  F_alk.allocate(1,nlbin,1,nage,"F_alk");
   #ifndef NO_AD_INITIALIZE
-    plhat.initialize();
+    F_alk.initialize();
+  #endif
+  M_alk.allocate(1,nlbin,1,nage,"M_alk");
+  #ifndef NO_AD_INITIALIZE
+    M_alk.initialize();
+  #endif
+  RV_plhat.allocate(syr,eyr,1,nlbin,"RV_plhat");
+  #ifndef NO_AD_INITIALIZE
+    RV_plhat.initialize();
+  #endif
+  HSM_plhat.allocate(syr,eyr,1,nlbin,"HSM_plhat");
+  #ifndef NO_AD_INITIALIZE
+    HSM_plhat.initialize();
+  #endif
+  HSF_plhat.allocate(syr,eyr,1,nlbin,"HSF_plhat");
+  #ifndef NO_AD_INITIALIZE
+    HSF_plhat.initialize();
+  #endif
+  OT_plhat.allocate(syr,eyr,1,nlbin,"OT_plhat");
+  #ifndef NO_AD_INITIALIZE
+    OT_plhat.initialize();
+  #endif
+  LLM_plhat.allocate(syr,eyr,1,nlbin,"LLM_plhat");
+  #ifndef NO_AD_INITIALIZE
+    LLM_plhat.initialize();
+  #endif
+  LLF_plhat.allocate(syr,eyr,1,nlbin,"LLF_plhat");
+  #ifndef NO_AD_INITIALIZE
+    LLF_plhat.initialize();
   #endif
 }
 
@@ -295,7 +345,7 @@ void model_parameters::preliminary_calculations(void)
 
 void model_parameters::userfunction(void)
 {
-  nll =0.0;
+  ofv =0.0;
 	initialization();
 	statedynamics();
 	observation_model();
@@ -355,57 +405,96 @@ void model_parameters::statedynamics(void)
 
 void model_parameters::observation_model(void)
 {
-	// Catch
+	// Fishery
 	// longline females
 	dvar_matrix LLMC(syr,eyr,1,nage);
 	LLMC=elem_prod(elem_div(M_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
 	LLM_ct_hat=LLMC*waM;
+	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
 	// longline females
 	dvar_matrix LLFC(syr,eyr,1,nage);
 	LLFC=elem_prod(elem_div(F_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
 	LLF_ct_hat=LLFC*waF;
+	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
 	// ottertrawl
 	dvar_matrix OTMC(syr,eyr,1,nage);
 	dvar_matrix OTFC(syr,eyr,1,nage);
 	OTMC=elem_prod(elem_div(OT_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
 	OTFC=elem_prod(elem_div(OT_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
-	OT_ct_hat=waF*OTFC+waM*OTMC;
-	//catch residuals
-	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
-	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
+	OT_ct_hat=OTFC*waF+OTMC*waM;
 	OT_ct_resid=log(OTct)-log(OT_ct_hat);
-	//cpue residuals (walters and ludwig 1994)
-	yt_resid=log(RVindex)-log(F_bt(syr,eyr));
-	q=mfexp(mean(yt_resid));
-	yt_resid-=mean(yt_resid);
-	//predicted proportions in the catch
-		//p(l|a)
-	dvar_vector sdl=laa(2)*cvgrow;
-	//cout<<sdl<<endl;
-	//ad_exit(1);
-	dvar_matrix pla(1,nlbin,1,nage);
-	dvar_vector lbins(1,nlbin);
+	//Survey
+	//RV residuals (walters and ludwig 1994)
+	RV_pred=(F_Nat+M_Nat)*RV_va;
+	RV_resid=log(RVindex)-log(RV_pred(syr,eyr));
+	RVq=mfexp(mean(RV_resid));
+	RV_resid-=mean(RV_resid);
+	//HS residuals (walters and ludwig 1994)
+	HS_pred=(F_Nat*HSF_va+M_Nat*HSM_va);
+	HS_resid=log(HSindex)-log(HS_pred(HSsyr,eyr));
+	HSq=mfexp(mean(HS_resid));
+	HS_resid-=mean(HS_resid);
+	//Age Length transition matrix
 	lbins.fill_seqadd(minbin,stepbin*2.);
+	dvar_vector Fsdl=laaF*cvgrow;
+	dvar_vector Msdl=laaM*cvgrow;
 	dvariable z1;
 	dvariable z2;
-	pla.initialize();
+	F_alk.initialize();
+	M_alk.initialize();
 	for(int i=1;i<=nage;i++) //loop over ages
 	{
 		 for(int j=1;j<=nlbin;j++) //loop over length bins
 		{
-			z1=((lbins(j)-stepbin)-laa(2,i))/sdl(i);
-			z2=((lbins(j)+stepbin)-laa(2,i))/sdl(i);
-			pla(j,i)=cumd_norm(z2)-cumd_norm(z1);
+			// Males
+			z1=((lbins(j)-stepbin)-laaM(i))/Msdl(i);
+			z2=((lbins(j)+stepbin)-laaM(i))/Msdl(i);
+			M_alk(j,i)=cumd_norm(z2)-cumd_norm(z1);
+			// Females
+			z1=((lbins(j)-stepbin)-laaF(i))/Fsdl(i);
+			z2=((lbins(j)+stepbin)-laaF(i))/Fsdl(i);
+			F_alk(j,i)=cumd_norm(z2)-cumd_norm(z1);
 		}//end nbins
 	}//end nage
+	// Predicted proportions at length
+	dvar_vector paM;
+	dvar_vector paF;
+	dvar_vector pl;
+	dvar_vector plF;
+	dvar_vector plM;
 	for(int i=syr;i<=eyr;i++)
 	{
-		dvar_vector pa=LLFC(i)/sum(LLFC(i));
-		dvar_vector pl=pla*pa;
-		plhat(i)=pl/sum(pl);
+		// longline females
+		paF=LLFC(i);
+		plF=F_alk*paF;
+		LLF_plhat(i)=plF/sum(plF);
+		// longline males
+		paM=LLMC(i);
+		plM=M_alk*paM;
+		LLM_plhat(i)=plM/sum(plM);
+		// otter trawl
+		paM=OTMC(i);
+		plM=M_alk*paM;
+		paF=OTFC(i);
+		plF=F_alk*paF;
+		pl=plF+plM;
+		OT_plhat(i)=pl/sum(pl);
+		// halibut survey females
+		paF=elem_prod(F_Nat(i),HSF_va);
+		plF=F_alk*paF;
+		HSF_plhat(i)=plF/sum(plF);
+		// halibut survey males
+		paM=elem_prod(M_Nat(i),HSM_va);
+		plM=M_alk*paM;
+		HSM_plhat(i)=plM/sum(plM);
+		// RV survey
+		paM=elem_prod(M_Nat(i),RV_va);
+		plM=M_alk*paM;
+		paF=elem_prod(F_Nat(i),RV_va);
+		plF=F_alk*paF;
+		pl=plF+plM;
+		RV_plhat(i)=pl/sum(pl);
 	}
-	//cout<<plhat(syr)<<endl;
-	//ad_exit(1);
 }
 
 void model_parameters::stock_recruit_model(void)
@@ -421,25 +510,37 @@ void model_parameters::stock_recruit_model(void)
 	dvar_vector nmr=so*sbt(syr,eyr-1);
 	dvar_vector den=(1.+beta*sbt(syr,eyr-1));
 	dvar_vector tmp_rt=++elem_div(nmr,den);
-	rt=column(F_Nat.sub(syr+1,eyr),1);
+	rt=column(F_Nat.sub(syr+1,eyr),1)+column(M_Nat.sub(syr+1,eyr),1);
 	rt_resid=log(tmp_rt)-log(rt);
 }
 
 void model_parameters::objective_function(void)
 {
-	dvar_vector nll_vec(1,4);
+	// Negative Log Likelihoods
+	dvar_vector nll_vec(1,12);
 	tdev=sqrt(1./mfexp(ptdev));
 	sig=sqrt(rho*1./mfexp(ptdev));//process error sd.dev
 	tau=sqrt((1.-rho)*1./mfexp(ptdev));
+	double tau2;
+	//cout<<RVq<<endl;
+	//ad_exit(1);
 	nll_vec.initialize();
 	nll_vec(1)=dnorm(LLF_ct_resid,0.05);
-	nll_vec(2)=dnorm(yt_resid,tau);
-	nll_vec(3)=dnorm(rt_resid,sig);
-	double tau2;
-	nll_vec(4)=dmvlogistic(LLcatlenF,plhat,tau2);
+	nll_vec(2)=dnorm(LLF_ct_resid,0.05);
+	nll_vec(3)=dnorm(OT_ct_resid,0.05);
+	nll_vec(4)=dnorm(RV_resid,tau);
+	nll_vec(5)=dnorm(HS_resid,tau);
+	nll_vec(6)=dnorm(rt_resid,sig);
+	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,tau2);
+	//nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
+	//nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
+	//nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
+	//nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
+	//nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
+	// Priors
 	dvar_vector p_vec(1,5);
-	p_vec.initialize();
 	dvariable h=cr/(4.+cr);
+	p_vec.initialize();
 	p_vec(1)=dbeta((h-0.2)/0.8,2,2);
 	if(last_phase())
 	{
@@ -452,7 +553,7 @@ void model_parameters::objective_function(void)
 		p_vec(4)=100.*norm2(log_LLF_ft_dev);
 	}
 	p_vec(5)=dbeta(rho,50,50);
-	nll=sum(nll_vec)+sum(p_vec);
+	ofv=sum(nll_vec)+sum(p_vec);
 }
 
 void model_parameters::mcmc_output(void)
@@ -495,7 +596,7 @@ void model_parameters::report()
 	REPORT(cr);
 	REPORT(mfexp(log_rbar));
 	REPORT(mfexp(log_rbar+wt));
-	REPORT(plhat);
+	REPORT(RV_plhat);
 	REPORT(ahat);
 	REPORT(ghat);
 	REPORT(rho);

@@ -37,16 +37,16 @@ DATA_SECTION
 	init_matrix RVcatlen(syr,eyr,1,nlbin);		// summer RV survey catch-at-length in stratified total numbers	
 	init_int HSsyr;
 	init_vector HSindex(HSsyr,eyr);				// halibut survey index glm results
-	init_matrix HScatlenM(HSsyr,eyr,1,nlbin);	// halibut survey catch-at-length males
-	init_matrix HScatlenF(HSsyr,eyr,1,nlbin);	// halibut survey catch-at-length females
+	init_matrix HSMcatlen(HSsyr,eyr,1,nlbin);	// halibut survey catch-at-length males
+	init_matrix HSFcatlen(HSsyr,eyr,1,nlbin);	// halibut survey catch-at-length females
 	
 	// Fishery data
 	init_vector LLctM(syr,eyr);					// longline catch, males (tonnes)
 	init_vector LLctF(syr,eyr);					// longline catch, females (tonnes)
 	init_vector OTct(syr,eyr);					// otter trawl catch (tonnes)
 	init_int LLsyr;
-	init_matrix LLcatlenM(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, males
-	init_matrix LLcatlenF(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, females
+	init_matrix LLMcatlen(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, males
+	init_matrix LLFcatlen(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, females
 	init_int OTsyr;
 	init_matrix OTcatlen(OTsyr,eyr,1,nlbin2);	// otter trawl catch-at-length
 	
@@ -56,8 +56,8 @@ DATA_SECTION
 	init_vector linf(1,nsexes);
 	init_vector vbk(1,nsexes);
 	init_vector t0(1,nsexes);
-	init_vector laaM(1,nage);			// length-at-age, males
-	init_vector laaF(1,nage);			// length-at-age, females
+	init_vector laaM(1,nage);					// length-at-age, males
+	init_vector laaF(1,nage);					// length-at-age, females
 	init_vector laaM_sigma(1,nage);
 	init_vector laaF_sigma(1,nage);
 	init_vector mata(1,nsexes);
@@ -95,6 +95,7 @@ DATA_SECTION
 	vector waM(1,nage);					//weight-at-age
 	vector waF(1,nage);					//weight-at-age
 	vector fa(1,nage);					//fecundity-at-age
+
 	LOCAL_CALCS
 		for (int a=1;a<=nage;a++){
 			ma(a)=1/(1+exp(-matb(2)*((linf(2)-(linf(2)-t0(2))*exp(-vbk(2)*a))-mata(2))));
@@ -103,6 +104,13 @@ DATA_SECTION
 		waF=lwa(2)*pow(laaM,lwb(2))/1000; 
 		fa=elem_prod(waF,ma);
 	END_CALCS
+//	matrix pRVcatlen(syr,eyr,1,nlbin);		
+//	matrix pHScatlenM(HSsyr,eyr,1,nlbin);
+//	matrix pHScatlenF(HSsyr,eyr,1,nlbin);
+
+//	LOCAL_CALCS
+//	END_CALCS
+	
 	
 	// ****Simulations****
 //	!!ad_comm::change_datafile_name("halSCAL.ctl");
@@ -127,11 +135,12 @@ DATA_SECTION
 //	END_CALCS
 
 PARAMETER_SECTION
+	
+	// estimated parameters
 	init_number log_ro(4);
 	init_number log_cr(5);
 	init_number log_rbar;
 	
-	// fishing mortality parameters
 	init_number log_LLF_fbar;
 	init_number log_LLM_fbar;
 	init_number log_OT_fbar;
@@ -139,13 +148,17 @@ PARAMETER_SECTION
 	init_bounded_dev_vector log_LLM_ft_dev(syr,eyr,-10.,10.,3);
 	init_bounded_dev_vector log_OT_ft_dev(syr,eyr,-10.,10.,3);
 	
+	init_number ptdev;
 	init_bounded_number ahat(0,nage);
 	init_bounded_number ghat(0,5);
-	init_number ptdev;
 	init_bounded_number rho(0,1);
 	init_bounded_number cvgrow(0,1);
 	init_bounded_dev_vector wt(syr-nage,eyr,-10.,10.,2);
-	objective_function_value nll;
+	
+	objective_function_value ofv;
+	sdreport_number tdev;
+	
+	// initialization
 	!!log_ro=log(iro);
 	!!log_cr=log(icr);
 	!!log_rbar=log(irbar);
@@ -153,23 +166,24 @@ PARAMETER_SECTION
 	!!log_LLM_fbar=log(ifbar);
 	!!log_OT_fbar=log(ifbar);
 	!!rho=0.5;
-	!!cvgrow=0.2;
+	!!cvgrow=0.1;
 	!!ptdev=log(1./0.08);
 	!!ahat=iahat;
 	!!ghat=ighat;
+	
 	number ro;
 	number cr;
 	number rbar;
 	number fbar;
 	number so;
 	number beta;
-	number q;
+	number RVq;
+	number HSq;
 	number fmsy;
 	number msy;
 	number bmsy;
 	number sig;
 	number tau;
-	sdreport_number tdev;
 
 	vector HSM_va(1,nage);
 	vector HSF_va(1,nage);
@@ -188,9 +202,13 @@ PARAMETER_SECTION
 	vector LLF_ct_resid(syr,eyr);
 	vector LLM_ct_resid(syr,eyr);
 	vector OT_ct_resid(syr,eyr);
-	vector yt_resid(syr,eyr);
+	vector RV_resid(syr,eyr);
+	vector HS_resid(HSsyr,eyr);
 	vector rt(syr+1,eyr);
 	vector rt_resid(syr+1,eyr);
+	vector HS_pred(syr,eyr+1);
+	vector RV_pred(syr,eyr+1);
+	vector lbins(1,nlbin);
 
 	matrix M_Nat(syr,eyr+1,1,nage);
 	matrix F_Nat(syr,eyr+1,1,nage);
@@ -199,7 +217,14 @@ PARAMETER_SECTION
 	matrix OT_Fat(syr,eyr,1,nage);
 	matrix M_Zat(syr,eyr,1,nage);
 	matrix F_Zat(syr,eyr,1,nage);
-	matrix plhat(syr,eyr,1,nlbin);
+	matrix F_alk(1,nlbin,1,nage);
+	matrix M_alk(1,nlbin,1,nage);
+	matrix RV_plhat(syr,eyr,1,nlbin);
+	matrix HSM_plhat(syr,eyr,1,nlbin);
+	matrix HSF_plhat(syr,eyr,1,nlbin);
+	matrix OT_plhat(syr,eyr,1,nlbin);
+	matrix LLM_plhat(syr,eyr,1,nlbin);
+	matrix LLF_plhat(syr,eyr,1,nlbin);
 
 PRELIMINARY_CALCS_SECTION
 //  if(sim)
@@ -281,62 +306,101 @@ FUNCTION statedynamics
 
 FUNCTION observation_model
 	
-	// Catch
+	// Fishery
 	// longline females
 	dvar_matrix LLMC(syr,eyr,1,nage);
 	LLMC=elem_prod(elem_div(M_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
 	LLM_ct_hat=LLMC*waM;
+	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
 	// longline females
 	dvar_matrix LLFC(syr,eyr,1,nage);
 	LLFC=elem_prod(elem_div(F_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
 	LLF_ct_hat=LLFC*waF;
+	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
 	// ottertrawl
 	dvar_matrix OTMC(syr,eyr,1,nage);
 	dvar_matrix OTFC(syr,eyr,1,nage);
 	OTMC=elem_prod(elem_div(OT_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
 	OTFC=elem_prod(elem_div(OT_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
-	OT_ct_hat=waF*OTFC+waM*OTMC;
-
-	//catch residuals
-	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
-	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
+	OT_ct_hat=OTFC*waF+OTMC*waM;
 	OT_ct_resid=log(OTct)-log(OT_ct_hat);
 	
+	//Survey
+	//RV residuals (walters and ludwig 1994)
+	RV_pred=(F_Nat+M_Nat)*RV_va;
+	RV_resid=log(RVindex)-log(RV_pred(syr,eyr));
+	RVq=mfexp(mean(RV_resid));
+	RV_resid-=mean(RV_resid);
+	//HS residuals (walters and ludwig 1994)
+	HS_pred=(F_Nat*HSF_va+M_Nat*HSM_va);
+	HS_resid=log(HSindex)-log(HS_pred(HSsyr,eyr));
+	HSq=mfexp(mean(HS_resid));
+	HS_resid-=mean(HS_resid);
 	
-	//cpue residuals (walters and ludwig 1994)
-	yt_resid=log(RVindex)-log(F_bt(syr,eyr));
-	q=mfexp(mean(yt_resid));
-	yt_resid-=mean(yt_resid);
-	
-	//predicted proportions in the catch
-		//p(l|a)
-	dvar_vector sdl=laa(2)*cvgrow;
-	//cout<<sdl<<endl;
-	//ad_exit(1);
-	dvar_matrix pla(1,nlbin,1,nage);
-	dvar_vector lbins(1,nlbin);
+	//Age Length transition matrix
 	lbins.fill_seqadd(minbin,stepbin*2.);
+	dvar_vector Fsdl=laaF*cvgrow;
+	dvar_vector Msdl=laaM*cvgrow;
 	dvariable z1;
 	dvariable z2;
-	pla.initialize();
+	F_alk.initialize();
+	M_alk.initialize();
 	for(int i=1;i<=nage;i++) //loop over ages
 	{
 		 for(int j=1;j<=nlbin;j++) //loop over length bins
 		{
-			z1=((lbins(j)-stepbin)-laaF(i))/sdl(i);
-			z2=((lbins(j)+stepbin)-laaF(i))/sdl(i);
-			pla(j,i)=cumd_norm(z2)-cumd_norm(z1);
+			// Males
+			z1=((lbins(j)-stepbin)-laaM(i))/Msdl(i);
+			z2=((lbins(j)+stepbin)-laaM(i))/Msdl(i);
+			M_alk(j,i)=cumd_norm(z2)-cumd_norm(z1);
+			// Females
+			z1=((lbins(j)-stepbin)-laaF(i))/Fsdl(i);
+			z2=((lbins(j)+stepbin)-laaF(i))/Fsdl(i);
+			F_alk(j,i)=cumd_norm(z2)-cumd_norm(z1);
 		}//end nbins
 	}//end nage
+	
+	// Predicted proportions at length
+	dvar_vector paM;
+	dvar_vector paF;
+	dvar_vector pl;
+	dvar_vector plF;
+	dvar_vector plM;
+	
 	for(int i=syr;i<=eyr;i++)
 	{
-		dvar_vector pa=LLFC(i)/sum(LLFC(i));
-		dvar_vector pl=pla*pa;
-		plhat(i)=pl/sum(pl);
+		// longline females
+		paF=LLFC(i);
+		plF=F_alk*paF;
+		LLF_plhat(i)=plF/sum(plF);
+		// longline males
+		paM=LLMC(i);
+		plM=M_alk*paM;
+		LLM_plhat(i)=plM/sum(plM);
+		// otter trawl
+		paM=OTMC(i);
+		plM=M_alk*paM;
+		paF=OTFC(i);
+		plF=F_alk*paF;
+		pl=plF+plM;
+		OT_plhat(i)=pl/sum(pl);
+		
+		// halibut survey females
+		paF=elem_prod(F_Nat(i),HSF_va);
+		plF=F_alk*paF;
+		HSF_plhat(i)=plF/sum(plF);
+		// halibut survey males
+		paM=elem_prod(M_Nat(i),HSM_va);
+		plM=M_alk*paM;
+		HSM_plhat(i)=plM/sum(plM);
+		// RV survey
+		paM=elem_prod(M_Nat(i),RV_va);
+		plM=M_alk*paM;
+		paF=elem_prod(F_Nat(i),RV_va);
+		plF=F_alk*paF;
+		pl=plF+plM;
+		RV_plhat(i)=pl/sum(pl);
 	}
-	//cout<<plhat(syr)<<endl;
-	//ad_exit(1);
-
 
 FUNCTION stock_recruit_model
 	ro=mfexp(log_ro);
@@ -350,25 +414,40 @@ FUNCTION stock_recruit_model
 	dvar_vector nmr=so*sbt(syr,eyr-1);
 	dvar_vector den=(1.+beta*sbt(syr,eyr-1));
 	dvar_vector tmp_rt=++elem_div(nmr,den);
-	rt=column(F_Nat.sub(syr+1,eyr),1);
+	rt=column(F_Nat.sub(syr+1,eyr),1)+column(M_Nat.sub(syr+1,eyr),1);
 	rt_resid=log(tmp_rt)-log(rt);
 
 FUNCTION objective_function 
-	dvar_vector nll_vec(1,4);
+	
+	// Negative Log Likelihoods
+	dvar_vector nll_vec(1,12);
 	tdev=sqrt(1./mfexp(ptdev));
 	sig=sqrt(rho*1./mfexp(ptdev));//process error sd.dev
 	tau=sqrt((1.-rho)*1./mfexp(ptdev));
+	double tau2;
+	
+	//cout<<RVq<<endl;
+	//ad_exit(1);
+	
 	nll_vec.initialize();
 	nll_vec(1)=dnorm(LLF_ct_resid,0.05);
-	nll_vec(2)=dnorm(yt_resid,tau);
-	nll_vec(3)=dnorm(rt_resid,sig);
-	double tau2;
-	nll_vec(4)=dmvlogistic(LLcatlenF,plhat,tau2);
-	dvar_vector p_vec(1,5);
-	p_vec.initialize();
-	dvariable h=cr/(4.+cr);
-	p_vec(1)=dbeta((h-0.2)/0.8,2,2);
+	nll_vec(2)=dnorm(LLF_ct_resid,0.05);
+	nll_vec(3)=dnorm(OT_ct_resid,0.05);
+	nll_vec(4)=dnorm(RV_resid,tau);
+	nll_vec(5)=dnorm(HS_resid,tau);
+	nll_vec(6)=dnorm(rt_resid,sig);
+	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,tau2);
+	//nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
+	//nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
+	//nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
+	//nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
+	//nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
 	
+	// Priors
+	dvar_vector p_vec(1,5);
+	dvariable h=cr/(4.+cr);
+	p_vec.initialize();
+	p_vec(1)=dbeta((h-0.2)/0.8,2,2);
 	if(last_phase())
 	{
 		p_vec(3)=dnorm(wt,2);
@@ -378,10 +457,11 @@ FUNCTION objective_function
 	{
 		p_vec(3)=100.*norm2(wt);
 		p_vec(4)=100.*norm2(log_LLF_ft_dev);
-
 	}
 	p_vec(5)=dbeta(rho,50,50);
-	nll=sum(nll_vec)+sum(p_vec);
+	
+	
+	ofv=sum(nll_vec)+sum(p_vec);
 
 FUNCTION mcmc_output
 //	if(iter==0)
@@ -565,7 +645,7 @@ REPORT_SECTION
 //	REPORT(mfexp(log_fbar));
 //	REPORT(mfexp(log_fbar+log_ft_dev));
 //	REPORT(plt);
-	REPORT(plhat);
+	REPORT(RV_plhat);
 	REPORT(ahat);
 	REPORT(ghat);
 	REPORT(rho);
