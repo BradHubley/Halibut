@@ -28,6 +28,7 @@ DATA_SECTION
 	init_int nage;
 	init_int nsexes;
 	init_int nlbin;
+	//!! int nlbin2=nlbin;
 	init_int nlbin2;
 	init_number minbin;
 	init_number stepbin;
@@ -45,11 +46,20 @@ DATA_SECTION
 	init_vector LLctF(syr,eyr);					// longline catch, females (tonnes)
 	init_vector OTct(syr,eyr);					// otter trawl catch (tonnes)
 	init_int LLsyr;
-	init_matrix LLMcatlen(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, males
-	init_matrix LLFcatlen(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, females
+	init_matrix LLMcatlen1(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, males
+	init_matrix LLFcatlen1(LLsyr,eyr,1,nlbin2);	// longline catch-at-length, females
 	init_int OTsyr;
-	init_matrix OTcatlen(OTsyr,eyr,1,nlbin2);	// otter trawl catch-at-length
+	init_matrix OTcatlen1(OTsyr,eyr,1,nlbin2);	// otter trawl catch-at-length
 	
+	// strips off last 4 bins
+	matrix LLMcatlen(LLsyr,eyr,1,nlbin);
+	!! LLMcatlen=trans(trans(LLMcatlen1).sub(1,nlbin));
+	matrix LLFcatlen(LLsyr,eyr,1,nlbin);
+	!! LLFcatlen=trans(trans(LLFcatlen1).sub(1,nlbin));
+	matrix OTcatlen(OTsyr,eyr,1,nlbin);
+	!! OTcatlen=trans(trans(OTcatlen1).sub(1,nlbin));
+
+
 	// LH parameters
 	init_vector lwa(1,nsexes);
 	init_vector lwb(1,nsexes);
@@ -62,9 +72,7 @@ DATA_SECTION
 	init_vector laaF_sigma(1,nage);
 	init_vector mata(1,nsexes);
 	init_vector matb(1,nsexes);
-	//!!		cout<<mata<<endl;
-	//!!		ad_exit(1);
-
+	
 	// Initilaization parameters
 	init_number iro;
 	init_number icr;
@@ -77,6 +85,8 @@ DATA_SECTION
 	!!iter=0;
 	vector age(1,nage);
 	!!age.fill_seqadd(1,1);
+	vector iyr(syr,eyr);
+	!!iyr.fill_seqadd(syr,1);
 	number mM;
 	!!mM=1.2*vbk(1);
 	number mF;
@@ -88,14 +98,14 @@ DATA_SECTION
 			ad_exit(1);
 		}else{
 			cout<<"Reading data successful."<<endl;
-			//ad_exit(1);
 		}
 	END_CALCS
+	
+	// LH parameters
 	vector ma(1,nage);					//maturity-at-age
-	vector waM(1,nage);					//weight-at-age
-	vector waF(1,nage);					//weight-at-age
+	vector waM(1,nage);					//weight-at-age male
+	vector waF(1,nage);					//weight-at-age female
 	vector fa(1,nage);					//fecundity-at-age
-
 	LOCAL_CALCS
 		for (int a=1;a<=nage;a++){
 			ma(a)=1/(1+exp(-matb(2)*((linf(2)-(linf(2)-t0(2))*exp(-vbk(2)*a))-mata(2))));
@@ -104,12 +114,30 @@ DATA_SECTION
 		waF=lwa(2)*pow(laaM,lwb(2))/1000; 
 		fa=elem_prod(waF,ma);
 	END_CALCS
-//	matrix pRVcatlen(syr,eyr,1,nlbin);		
-//	matrix pHScatlenM(HSsyr,eyr,1,nlbin);
-//	matrix pHScatlenF(HSsyr,eyr,1,nlbin);
-
-//	LOCAL_CALCS
-//	END_CALCS
+	
+	// convert numbers-at-lengths to proportions
+	matrix pRVcatlen(syr,eyr,1,nlbin);		
+	matrix pHSMcatlen(HSsyr,eyr,1,nlbin);
+	matrix pHSFcatlen(HSsyr,eyr,1,nlbin);
+	matrix pOTcatlen(OTsyr,eyr,1,nlbin);		
+	matrix pLLMcatlen(LLsyr,eyr,1,nlbin);
+	matrix pLLFcatlen(LLsyr,eyr,1,nlbin);
+	LOCAL_CALCS
+		for(int t=syr;t<=eyr;t++){
+			pRVcatlen(t) = RVcatlen(t)/sum(RVcatlen(t));
+		}
+		for(int t=HSsyr;t<=eyr;t++){
+			pHSMcatlen(t) = HSMcatlen(t)/sum(HSMcatlen(t));
+			pHSFcatlen(t) = HSFcatlen(t)/sum(HSFcatlen(t));
+		}
+		for(int t=OTsyr;t<=eyr;t++){
+			pOTcatlen(t) = OTcatlen(t)/sum(OTcatlen(t));
+		}
+		for(int t=LLsyr;t<=eyr;t++){
+			pLLMcatlen(t) = LLMcatlen(t)/sum(LLMcatlen(t));
+			pLLFcatlen(t) = LLFcatlen(t)/sum(LLFcatlen(t));
+		}
+	END_CALCS
 	
 	
 	// ****Simulations****
@@ -274,17 +302,19 @@ FUNCTION initialization
 	// total mortality
 	M_Zat=mM+M_Fat+OT_Fat;
 	F_Zat=mF+F_Fat+OT_Fat;
+	
+
 
 FUNCTION statedynamics
 
 	// Males
 	dvar_vector lxoM=pow(mfexp(-mM),age-1.);
 	lxoM(nage)/=(1.-mfexp(-mM));
-	M_Nat(syr,1)=mfexp(log_rbar+wt(syr-1));
-	for(int j=2;j<=nage;j++) M_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoM(j);
+	M_Nat(syr,1)=mfexp(log_rbar+wt(syr-1))/2;
+	for(int j=2;j<=nage;j++) M_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoM(j)/2;
 	for(int i=syr;i<=eyr;i++)
 	{
-		M_Nat(i+1,1)=mfexp(log_rbar+wt(i));
+		M_Nat(i+1,1)=mfexp(log_rbar+wt(i))/2;
 		M_Nat(i+1)(2,nage)=++elem_prod(M_Nat(i)(1,nage-1),mfexp(-M_Zat(i)(1,nage-1)));
 		M_Nat(i+1,nage)+=M_Nat(i,nage)*mfexp(-M_Zat(i,nage));
 	}
@@ -293,11 +323,11 @@ FUNCTION statedynamics
 	// Females
 	dvar_vector lxoF=pow(mfexp(-mF),age-1.);
 	lxoF(nage)/=(1.-mfexp(-mF));
-	F_Nat(syr,1)=mfexp(log_rbar+wt(syr-1));
-	for(int j=2;j<=nage;j++) F_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoF(j);
+	F_Nat(syr,1)=mfexp(log_rbar+wt(syr-1))/2;
+	for(int j=2;j<=nage;j++) F_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoF(j)/2;
 	for(int i=syr;i<=eyr;i++)
 	{
-		F_Nat(i+1,1)=mfexp(log_rbar+wt(i));
+		F_Nat(i+1,1)=mfexp(log_rbar+wt(i))/2;
 		F_Nat(i+1)(2,nage)=++elem_prod(F_Nat(i)(1,nage-1),mfexp(-F_Zat(i)(1,nage-1)));
 		F_Nat(i+1,nage)+=F_Nat(i,nage)*mfexp(-F_Zat(i,nage));
 	}
@@ -359,6 +389,11 @@ FUNCTION observation_model
 			F_alk(j,i)=cumd_norm(z2)-cumd_norm(z1);
 		}//end nbins
 	}//end nage
+	//F_alk/=sum(F_alk);
+	//ofstream ofs("testFALK.txt");
+	//ofs<<setprecision(2)<<F_alk<<endl;
+	//ad_exit(1);
+	
 	
 	// Predicted proportions at length
 	dvar_vector paM;
@@ -426,9 +461,6 @@ FUNCTION objective_function
 	tau=sqrt((1.-rho)*1./mfexp(ptdev));
 	double tau2;
 	
-	//cout<<RVq<<endl;
-	//ad_exit(1);
-	
 	nll_vec.initialize();
 	nll_vec(1)=dnorm(LLF_ct_resid,0.05);
 	nll_vec(2)=dnorm(LLF_ct_resid,0.05);
@@ -437,11 +469,14 @@ FUNCTION objective_function
 	nll_vec(5)=dnorm(HS_resid,tau);
 	nll_vec(6)=dnorm(rt_resid,sig);
 	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,tau2);
-	//nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
-	//nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
-	//nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
-	//nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
-	//nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
+	nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
+	nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
+	nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
+	nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
+	nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
+	
+	//cout<<tau2<<endl;
+	//ad_exit(1);
 	
 	// Priors
 	dvar_vector p_vec(1,5);
@@ -461,7 +496,7 @@ FUNCTION objective_function
 	p_vec(5)=dbeta(rho,50,50);
 	
 	
-	ofv=sum(nll_vec)+sum(p_vec);
+	ofv=sum(nll_vec);	//+sum(p_vec);
 
 FUNCTION mcmc_output
 //	if(iter==0)
@@ -631,6 +666,26 @@ FUNCTION void get_CF(double& fe, double& msy,double& bmsy)
 //
 REPORT_SECTION
 	
+	
+	REPORT(RVq)
+	REPORT(RV_pred)
+	REPORT(RVindex)
+	REPORT(HSq)
+	REPORT(HS_pred)
+	REPORT(HSindex)
+
+	REPORT(LLF_ct_hat)
+	REPORT(LLctF)
+	REPORT(LLM_ct_hat)
+	REPORT(LLctM)
+	REPORT(OT_ct_hat)
+	REPORT(OTct)
+	
+	REPORT(rbar)
+	REPORT(rt)
+	
+
+
 	//double fmsy;
 	//double msy;
 	//double bmsy;
@@ -638,23 +693,21 @@ REPORT_SECTION
 	//{
 	//	get_CF(fmsy,msy,bmsy);
 	//}
-	REPORT(ro);
-	REPORT(cr);
-	REPORT(mfexp(log_rbar));
-	REPORT(mfexp(log_rbar+wt));
+//	REPORT(ro);
+//	REPORT(cr);
 //	REPORT(mfexp(log_fbar));
 //	REPORT(mfexp(log_fbar+log_ft_dev));
 //	REPORT(plt);
-	REPORT(RV_plhat);
-	REPORT(ahat);
-	REPORT(ghat);
-	REPORT(rho);
-	REPORT(cvgrow);
+//	REPORT(RV_plhat);
+//	REPORT(ahat);
+//	REPORT(ghat);
+//	REPORT(rho);
+//	REPORT(cvgrow);
 //	REPORT(ct);
 //	REPORT(ct_hat);
-	REPORT(fmsy);
-	REPORT(msy);
-	REPORT(bmsy);
+//	REPORT(fmsy);
+//	REPORT(msy);
+//	REPORT(bmsy);
 
 TOP_OF_MAIN_SECTION
 	

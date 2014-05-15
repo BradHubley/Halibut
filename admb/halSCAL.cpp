@@ -46,10 +46,16 @@ model_data::model_data(int argc,char * argv[]) : ad_comm(argc,argv)
   LLctF.allocate(syr,eyr,"LLctF");
   OTct.allocate(syr,eyr,"OTct");
   LLsyr.allocate("LLsyr");
-  LLMcatlen.allocate(LLsyr,eyr,1,nlbin2,"LLMcatlen");
-  LLFcatlen.allocate(LLsyr,eyr,1,nlbin2,"LLFcatlen");
+  LLMcatlen1.allocate(LLsyr,eyr,1,nlbin2,"LLMcatlen1");
+  LLFcatlen1.allocate(LLsyr,eyr,1,nlbin2,"LLFcatlen1");
   OTsyr.allocate("OTsyr");
-  OTcatlen.allocate(OTsyr,eyr,1,nlbin2,"OTcatlen");
+  OTcatlen1.allocate(OTsyr,eyr,1,nlbin2,"OTcatlen1");
+  LLMcatlen.allocate(LLsyr,eyr,1,nlbin);
+ LLMcatlen=trans(trans(LLMcatlen1).sub(1,nlbin));
+  LLFcatlen.allocate(LLsyr,eyr,1,nlbin);
+ LLFcatlen=trans(trans(LLFcatlen1).sub(1,nlbin));
+  OTcatlen.allocate(OTsyr,eyr,1,nlbin);
+ OTcatlen=trans(trans(OTcatlen1).sub(1,nlbin));
   lwa.allocate(1,nsexes,"lwa");
   lwb.allocate(1,nsexes,"lwb");
   linf.allocate(1,nsexes,"linf");
@@ -71,6 +77,8 @@ model_data::model_data(int argc,char * argv[]) : ad_comm(argc,argv)
 iter=0;
   age.allocate(1,nage);
 age.fill_seqadd(1,1);
+  iyr.allocate(syr,eyr);
+iyr.fill_seqadd(syr,1);
 mM=1.2*vbk(1);
 mF=1.2*vbk(2);
 		if(eof!=999)
@@ -79,7 +87,6 @@ mF=1.2*vbk(2);
 			ad_exit(1);
 		}else{
 			cout<<"Reading data successful."<<endl;
-			//ad_exit(1);
 		}
   ma.allocate(1,nage);
   waM.allocate(1,nage);
@@ -91,6 +98,26 @@ mF=1.2*vbk(2);
 		waM=lwa(1)*pow(laaF,lwb(1))/1000; 	//convert to kg
 		waF=lwa(2)*pow(laaM,lwb(2))/1000; 
 		fa=elem_prod(waF,ma);
+  pRVcatlen.allocate(syr,eyr,1,nlbin);
+  pHSMcatlen.allocate(HSsyr,eyr,1,nlbin);
+  pHSFcatlen.allocate(HSsyr,eyr,1,nlbin);
+  pOTcatlen.allocate(OTsyr,eyr,1,nlbin);
+  pLLMcatlen.allocate(LLsyr,eyr,1,nlbin);
+  pLLFcatlen.allocate(LLsyr,eyr,1,nlbin);
+		for(int t=syr;t<=eyr;t++){
+			pRVcatlen(t) = RVcatlen(t)/sum(RVcatlen(t));
+		}
+		for(int t=HSsyr;t<=eyr;t++){
+			pHSMcatlen(t) = HSMcatlen(t)/sum(HSMcatlen(t));
+			pHSFcatlen(t) = HSFcatlen(t)/sum(HSFcatlen(t));
+		}
+		for(int t=OTsyr;t<=eyr;t++){
+			pOTcatlen(t) = OTcatlen(t)/sum(OTcatlen(t));
+		}
+		for(int t=LLsyr;t<=eyr;t++){
+			pLLMcatlen(t) = LLMcatlen(t)/sum(LLMcatlen(t));
+			pLLFcatlen(t) = LLFcatlen(t)/sum(LLFcatlen(t));
+		}
 }
 
 model_parameters::model_parameters(int sz,int argc,char * argv[]) : 
@@ -380,11 +407,11 @@ void model_parameters::statedynamics(void)
 	// Males
 	dvar_vector lxoM=pow(mfexp(-mM),age-1.);
 	lxoM(nage)/=(1.-mfexp(-mM));
-	M_Nat(syr,1)=mfexp(log_rbar+wt(syr-1));
-	for(int j=2;j<=nage;j++) M_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoM(j);
+	M_Nat(syr,1)=mfexp(log_rbar+wt(syr-1))/2;
+	for(int j=2;j<=nage;j++) M_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoM(j)/2;
 	for(int i=syr;i<=eyr;i++)
 	{
-		M_Nat(i+1,1)=mfexp(log_rbar+wt(i));
+		M_Nat(i+1,1)=mfexp(log_rbar+wt(i))/2;
 		M_Nat(i+1)(2,nage)=++elem_prod(M_Nat(i)(1,nage-1),mfexp(-M_Zat(i)(1,nage-1)));
 		M_Nat(i+1,nage)+=M_Nat(i,nage)*mfexp(-M_Zat(i,nage));
 	}
@@ -392,11 +419,11 @@ void model_parameters::statedynamics(void)
 	// Females
 	dvar_vector lxoF=pow(mfexp(-mF),age-1.);
 	lxoF(nage)/=(1.-mfexp(-mF));
-	F_Nat(syr,1)=mfexp(log_rbar+wt(syr-1));
-	for(int j=2;j<=nage;j++) F_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoF(j);
+	F_Nat(syr,1)=mfexp(log_rbar+wt(syr-1))/2;
+	for(int j=2;j<=nage;j++) F_Nat(syr,j)=mfexp(log_rbar+wt(syr-j))*lxoF(j)/2;
 	for(int i=syr;i<=eyr;i++)
 	{
-		F_Nat(i+1,1)=mfexp(log_rbar+wt(i));
+		F_Nat(i+1,1)=mfexp(log_rbar+wt(i))/2;
 		F_Nat(i+1)(2,nage)=++elem_prod(F_Nat(i)(1,nage-1),mfexp(-F_Zat(i)(1,nage-1)));
 		F_Nat(i+1,nage)+=F_Nat(i,nage)*mfexp(-F_Zat(i,nage));
 	}
@@ -456,6 +483,10 @@ void model_parameters::observation_model(void)
 			F_alk(j,i)=cumd_norm(z2)-cumd_norm(z1);
 		}//end nbins
 	}//end nage
+	//F_alk/=sum(F_alk);
+	//ofstream ofs("testFALK.txt");
+	//ofs<<setprecision(2)<<F_alk<<endl;
+	//ad_exit(1);
 	// Predicted proportions at length
 	dvar_vector paM;
 	dvar_vector paF;
@@ -522,8 +553,6 @@ void model_parameters::objective_function(void)
 	sig=sqrt(rho*1./mfexp(ptdev));//process error sd.dev
 	tau=sqrt((1.-rho)*1./mfexp(ptdev));
 	double tau2;
-	//cout<<RVq<<endl;
-	//ad_exit(1);
 	nll_vec.initialize();
 	nll_vec(1)=dnorm(LLF_ct_resid,0.05);
 	nll_vec(2)=dnorm(LLF_ct_resid,0.05);
@@ -532,11 +561,13 @@ void model_parameters::objective_function(void)
 	nll_vec(5)=dnorm(HS_resid,tau);
 	nll_vec(6)=dnorm(rt_resid,sig);
 	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,tau2);
-	//nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
-	//nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
-	//nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
-	//nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
-	//nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
+	nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
+	nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
+	nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
+	nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
+	nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
+	//cout<<tau2<<endl;
+	//ad_exit(1);
 	// Priors
 	dvar_vector p_vec(1,5);
 	dvariable h=cr/(4.+cr);
@@ -553,7 +584,7 @@ void model_parameters::objective_function(void)
 		p_vec(4)=100.*norm2(log_LLF_ft_dev);
 	}
 	p_vec(5)=dbeta(rho,50,50);
-	ofv=sum(nll_vec)+sum(p_vec);
+	ofv=sum(nll_vec);	//+sum(p_vec);
 }
 
 void model_parameters::mcmc_output(void)
@@ -585,6 +616,20 @@ void model_parameters::report()
     cerr << "error trying to open report file"  << adprogram_name << ".rep";
     return;
   }
+	REPORT(RVq)
+	REPORT(RV_pred)
+	REPORT(RVindex)
+	REPORT(HSq)
+	REPORT(HS_pred)
+	REPORT(HSindex)
+	REPORT(LLF_ct_hat)
+	REPORT(LLctF)
+	REPORT(LLM_ct_hat)
+	REPORT(LLctM)
+	REPORT(OT_ct_hat)
+	REPORT(OTct)
+	REPORT(rbar)
+	REPORT(rt)
 	//double fmsy;
 	//double msy;
 	//double bmsy;
@@ -592,18 +637,6 @@ void model_parameters::report()
 	//{
 	//	get_CF(fmsy,msy,bmsy);
 	//}
-	REPORT(ro);
-	REPORT(cr);
-	REPORT(mfexp(log_rbar));
-	REPORT(mfexp(log_rbar+wt));
-	REPORT(RV_plhat);
-	REPORT(ahat);
-	REPORT(ghat);
-	REPORT(rho);
-	REPORT(cvgrow);
-	REPORT(fmsy);
-	REPORT(msy);
-	REPORT(bmsy);
 }
 
 void model_parameters::final_calcs()

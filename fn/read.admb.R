@@ -1,12 +1,14 @@
 read.admb <-
-function(ifile)
+function(ifile, hessian=T)
 {	
-	ret=read.fit(ifile)
 	
 	fn=paste(ifile,'.rep', sep='')
 	A=read.rep(fn)
-	A$fit=ret
 	
+	if(hessian){
+		ret=read.fit(ifile)
+		A$fit=ret
+	}
 	pfn=paste(ifile,'.psv',sep='')
 	if(file.exists(pfn))
 		A$post.samp=read.psv(pfn)
