@@ -46,6 +46,7 @@ class model_data : public ad_comm{
   data_number ifbar;
   data_number iahat;
   data_number ighat;
+  data_number nodes;
   data_int eof;
   int iter;
   dvector age;
@@ -112,6 +113,7 @@ private:
   param_init_bounded_dev_vector log_LLF_ft_dev;
   param_init_bounded_dev_vector log_LLM_ft_dev;
   param_init_bounded_dev_vector log_OT_ft_dev;
+  param_init_bounded_vector ina;
   param_init_number ptdev;
   param_init_bounded_number ahat;
   param_init_bounded_number ghat;

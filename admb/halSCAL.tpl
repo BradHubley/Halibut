@@ -80,6 +80,7 @@ DATA_SECTION
 	init_number ifbar;
 	init_number iahat;
 	init_number ighat;
+	init_number nodes;
 	init_int eof;
 	int iter;
 	!!iter=0;
@@ -175,6 +176,7 @@ PARAMETER_SECTION
 	init_bounded_dev_vector log_LLF_ft_dev(syr,eyr,-10.,10.,3);
 	init_bounded_dev_vector log_LLM_ft_dev(syr,eyr,-10.,10.,3);
 	init_bounded_dev_vector log_OT_ft_dev(syr,eyr,-10.,10.,3);
+	init_bounded_vector ina(1,nodes,0,1.,3);
 	
 	init_number ptdev;
 	init_bounded_number ahat(0,nage);
@@ -282,14 +284,22 @@ PROCEDURE_SECTION
 FUNCTION initialization
 	
 	// vulnerabilities-at-age (survey)
-	RV_va=plogis(age,ahat,ghat);
+	//dvector ins(1,nodes);
+	//ins.fill_seqadd( 0,nage/nodes );
+	//dvar_vector ina(1,nodes);
+	//ina.fill_seqadd( 0,1./(nodes-1) );
+	//cout<<ina<<endl;
+	RV_va=cubic_spline(ina,age);
+	//cout<<RV_va<<endl;
+	//ad_exit(1);
+	//RV_va=plogis(age,ahat,ghat);
 	HSM_va=plogis(age,ahat,ghat);
 	HSF_va=plogis(age,ahat,ghat);
 	
 	// vulnerabilities-at-age (fishery)
 	LLM_va=plogis(age,ahat,ghat);
 	LLF_va=plogis(age,ahat,ghat);
-	OT_va=plogis(age,ahat,ghat);
+	OT_va=cubic_spline(ina,age);
 	
 	// fishing mortality 
 	LLM_ft=mfexp(log_LLM_fbar+log_LLM_ft_dev);
@@ -664,6 +674,26 @@ FUNCTION void get_CF(double& fe, double& msy,double& bmsy)
 //
 //
 //
+//=============================================================================
+//FUNCTION dvar_vector sel_dhn(int minage, int maxage, dvariable full, dvariable varL, dvariable varR)
+//
+//  dvar_vector selection(minage,maxage);
+//  selection.initialize();
+//
+//  for (age=minage;age<=maxage;age++)
+//  {
+//	if (full>age)
+//	{
+//		selection(age)=exp(-1.0*(square(age-full))/varL);             
+//	}
+//	else
+//	{
+//		selection(age)=exp(-1.0*(square(age-full))/varR);             
+//	}
+//  }	
+//  selection = selection/max(selection);
+//  return(selection);
+
 REPORT_SECTION
 	
 	

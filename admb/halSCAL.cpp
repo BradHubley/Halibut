@@ -73,6 +73,7 @@ model_data::model_data(int argc,char * argv[]) : ad_comm(argc,argv)
   ifbar.allocate("ifbar");
   iahat.allocate("iahat");
   ighat.allocate("ighat");
+  nodes.allocate("nodes");
   eof.allocate("eof");
 iter=0;
   age.allocate(1,nage);
@@ -133,6 +134,7 @@ model_parameters::model_parameters(int sz,int argc,char * argv[]) :
   log_LLF_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_LLF_ft_dev");
   log_LLM_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_LLM_ft_dev");
   log_OT_ft_dev.allocate(syr,eyr,-10.,10.,3,"log_OT_ft_dev");
+  ina.allocate(1,nodes,0,1.,3,"ina");
   ptdev.allocate("ptdev");
   ahat.allocate(0,nage,"ahat");
   ghat.allocate(0,5,"ghat");
@@ -383,13 +385,21 @@ void model_parameters::userfunction(void)
 void model_parameters::initialization(void)
 {
 	// vulnerabilities-at-age (survey)
-	RV_va=plogis(age,ahat,ghat);
+	//dvector ins(1,nodes);
+	//ins.fill_seqadd( 0,nage/nodes );
+	//dvar_vector ina(1,nodes);
+	//ina.fill_seqadd( 0,1./(nodes-1) );
+	//cout<<ina<<endl;
+	RV_va=cubic_spline(ina,age);
+	//cout<<RV_va<<endl;
+	//ad_exit(1);
+	//RV_va=plogis(age,ahat,ghat);
 	HSM_va=plogis(age,ahat,ghat);
 	HSF_va=plogis(age,ahat,ghat);
 	// vulnerabilities-at-age (fishery)
 	LLM_va=plogis(age,ahat,ghat);
 	LLF_va=plogis(age,ahat,ghat);
-	OT_va=plogis(age,ahat,ghat);
+	OT_va=cubic_spline(ina,age);
 	// fishing mortality 
 	LLM_ft=mfexp(log_LLM_fbar+log_LLM_ft_dev);
 	LLF_ft=mfexp(log_LLF_fbar+log_LLF_ft_dev);

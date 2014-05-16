@@ -225,8 +225,10 @@
 #ifbar
 0.2
 #iahat
-5.0
+5.5
 #ighat
-0.75
+0.15
+#nodes
+10
 #eof
 999
