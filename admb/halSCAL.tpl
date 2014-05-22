@@ -2,7 +2,7 @@
 //Programer: Brad Hubley													 
 //Date:	May 2014														 
 //Purpose:SCAL for Atlantic Halibut.											 
-//Notes: 	males=1, females=2			 
+//Notes: 			 
 //							 
 //																 
 //><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>><>
@@ -80,7 +80,9 @@ DATA_SECTION
 	init_number ifbar;
 	init_number iahat;
 	init_number ighat;
-	init_number nodes;
+	init_number ifull;
+	init_number iSDR;
+	init_number iSDL;
 	init_int eof;
 	int iter;
 	!!iter=0;
@@ -142,49 +144,41 @@ DATA_SECTION
 	
 	
 	// ****Simulations****
-//	!!ad_comm::change_datafile_name("halSCAL.ctl");
-//	init_number simsig;
-//	init_number simtau;
-//	init_number simqo;
-//	init_number simao;
-//	init_number simro;
-//	init_number simcr;
-//	init_number simrbar;
-//	init_number simahat;
-//	init_number simghat;
-//	init_number simcvgrow;
-//	init_vector simF(syr,eyr);
-//	init_int eofc;
-//	LOCAL_CALCS
-//		if(eofc!=999)
-//		{
-//			cout<<"Error reading control file.\n Fix it."<<endl;
-//			ad_exit(1);
-//		}
-//	END_CALCS
 
 PARAMETER_SECTION
 	
-	// estimated parameters
+	// Recruitment parameters
 	init_number log_ro(4);
 	init_number log_cr(5);
 	init_number log_rbar;
+	init_bounded_dev_vector wt(syr-nage,eyr,-10.,10.,2);
 	
+	// Fishing mortalities
 	init_number log_LLF_fbar;
 	init_number log_LLM_fbar;
 	init_number log_OT_fbar;
 	init_bounded_dev_vector log_LLF_ft_dev(syr,eyr,-10.,10.,3);
 	init_bounded_dev_vector log_LLM_ft_dev(syr,eyr,-10.,10.,3);
 	init_bounded_dev_vector log_OT_ft_dev(syr,eyr,-10.,10.,3);
-	init_bounded_vector ina(1,nodes,0,1.,3);
 	
-	init_number ptdev;
-	init_bounded_number ahat(0,nage);
-	init_bounded_number ghat(0,5);
+	// Selectivities
+	init_bounded_number HSsel_half(0,nage,4);
+	init_bounded_number HSsel_SD(0,5,4);
+	init_bounded_number RVsel_full(0,nage,4);
+	init_bounded_number RVsel_SDR(0,5,4);
+	init_bounded_number RVsel_SDL(0,5,4);
+	
+	init_bounded_number LLsel_half(0,nage,4);
+	init_bounded_number LLsel_SD(0,5,4);
+	init_bounded_number OTsel_full(0,nage,4);
+	init_bounded_number OTsel_SDR(0,5,4);
+	init_bounded_number OTsel_SDL(0,5,4);
+	
+	
 	init_bounded_number rho(0,1);
 	init_bounded_number cvgrow(0,1);
-	init_bounded_dev_vector wt(syr-nage,eyr,-10.,10.,2);
 	
+	init_number ptdev;
 	objective_function_value ofv;
 	sdreport_number tdev;
 	
@@ -198,8 +192,16 @@ PARAMETER_SECTION
 	!!rho=0.5;
 	!!cvgrow=0.1;
 	!!ptdev=log(1./0.08);
-	!!ahat=iahat;
-	!!ghat=ighat;
+	!!HSsel_half=iahat;
+	!!HSsel_SD=ighat;
+	!!RVsel_full=ifull;
+	!!RVsel_SDR=iSDR;
+	!!RVsel_SDL=iSDL;
+	!!LLsel_half=iahat;
+	!!LLsel_SD=ighat;
+	!!OTsel_full=ifull;
+	!!OTsel_SDR=iSDR;
+	!!OTsel_SDL=iSDL;
 	
 	number ro;
 	number cr;
@@ -284,22 +286,14 @@ PROCEDURE_SECTION
 FUNCTION initialization
 	
 	// vulnerabilities-at-age (survey)
-	//dvector ins(1,nodes);
-	//ins.fill_seqadd( 0,nage/nodes );
-	//dvar_vector ina(1,nodes);
-	//ina.fill_seqadd( 0,1./(nodes-1) );
-	//cout<<ina<<endl;
-	RV_va=cubic_spline(ina,age);
-	//cout<<RV_va<<endl;
-	//ad_exit(1);
-	//RV_va=plogis(age,ahat,ghat);
-	HSM_va=plogis(age,ahat,ghat);
-	HSF_va=plogis(age,ahat,ghat);
+	RV_va=sel_dhn(1,nage,RVsel_full,RVsel_SDR,RVsel_SDL);
+	HSM_va=plogis(age,HSsel_half,HSsel_SD);
+	HSF_va=plogis(age,HSsel_half,HSsel_SD);
 	
 	// vulnerabilities-at-age (fishery)
-	LLM_va=plogis(age,ahat,ghat);
-	LLF_va=plogis(age,ahat,ghat);
-	OT_va=cubic_spline(ina,age);
+	LLM_va=plogis(age,LLsel_half,LLsel_SD);
+	LLF_va=plogis(age,LLsel_half,LLsel_SD);
+	OT_va=sel_dhn(1,nage,OTsel_full,OTsel_SDR,OTsel_SDL);
 	
 	// fishing mortality 
 	LLM_ft=mfexp(log_LLM_fbar+log_LLM_ft_dev);
@@ -350,19 +344,19 @@ FUNCTION observation_model
 	// longline females
 	dvar_matrix LLMC(syr,eyr,1,nage);
 	LLMC=elem_prod(elem_div(M_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
-	LLM_ct_hat=LLMC*waM;
+	LLM_ct_hat=LLMC*waM/1000;
 	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
 	// longline females
 	dvar_matrix LLFC(syr,eyr,1,nage);
 	LLFC=elem_prod(elem_div(F_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
-	LLF_ct_hat=LLFC*waF;
+	LLF_ct_hat=LLFC*waF/1000;
 	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
 	// ottertrawl
 	dvar_matrix OTMC(syr,eyr,1,nage);
 	dvar_matrix OTFC(syr,eyr,1,nage);
 	OTMC=elem_prod(elem_div(OT_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
 	OTFC=elem_prod(elem_div(OT_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
-	OT_ct_hat=OTFC*waF+OTMC*waM;
+	OT_ct_hat=OTFC*waF/1000+OTMC*waM/1000;
 	OT_ct_resid=log(OTct)-log(OT_ct_hat);
 	
 	//Survey
@@ -470,6 +464,8 @@ FUNCTION objective_function
 	sig=sqrt(rho*1./mfexp(ptdev));//process error sd.dev
 	tau=sqrt((1.-rho)*1./mfexp(ptdev));
 	double tau2;
+	dvar_matrix nu(syr,eyr,1,nlbin);
+	double pmin=0.0025;
 	
 	nll_vec.initialize();
 	nll_vec(1)=dnorm(LLF_ct_resid,0.05);
@@ -478,12 +474,12 @@ FUNCTION objective_function
 	nll_vec(4)=dnorm(RV_resid,tau);
 	nll_vec(5)=dnorm(HS_resid,tau);
 	nll_vec(6)=dnorm(rt_resid,sig);
-	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,tau2);
-	nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,tau2);
-	nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,tau2);
-	nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,tau2);
-	nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,tau2);
-	nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,tau2);
+	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,nu,tau2,pmin);
+	nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,nu,tau2,pmin);
+	nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,nu,tau2,pmin);
+	nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,nu,tau2,pmin);
+	nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,nu,tau2,pmin);
+	nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,nu,tau2,pmin);
 	
 	//cout<<tau2<<endl;
 	//ad_exit(1);
@@ -508,6 +504,26 @@ FUNCTION objective_function
 	
 	ofv=sum(nll_vec);	//+sum(p_vec);
 
+FUNCTION dvar_vector sel_dhn(const int& minage, const int& maxage, dvariable& full, dvariable& varR, dvariable& varL)
+	
+	dvar_vector selection(minage,maxage);
+	selection.initialize();
+	
+	for (int a=minage;a<=maxage;a++)
+	{
+	if (full>a)
+	{
+		selection(a)=exp(-1.0*(square(a-full))/square(varL));             
+	}
+	else
+	{
+		selection(a)=exp(-1.0*(square(a-full))/square(varR));             
+	}
+	}	
+	selection = selection,max(selection);
+
+	return(selection);
+
 FUNCTION mcmc_output
 //	if(iter==0)
 //	{
@@ -524,178 +540,15 @@ FUNCTION mcmc_output
 FUNCTION forecast
 
 FUNCTION run_data_simulation
-//	random_number_generator rng(rseed);
-//	dmatrix C(syr,eyr,1,nage);
-//	dvector tmp(syr-nage,eyr);
-//	dvector eps(syr,eyr);
-//	dvector simqt(syr,eyr);
-//	tmp.fill_randn(rng);
-//	eps.fill_randn(rng);
-//	wt=tmp*simsig;
-//	eps*=simtau;
-//	log_ro=log(simro);
-//	log_cr=log(simcr);
-//	log_rbar=log(simrbar);
-//	ahat=simahat;
-//	ghat=simghat;
-//	ro=mfexp(log_ro);
-//	cr=mfexp(log_cr);
-//	rbar=mfexp(log_rbar);
-//	dvector lxo=pow(mfexp(-m),age-1.);
-//	lxo(nage)/=(1.-mfexp(-m));
-//	double phieo=lxo*fa;
-//	double phibo=lxo*wa;
-//	double Bo=value(ro)*phibo;
-//	so=cr/phieo;
-//	beta=(cr-1.)/(ro*phieo);
-//	//selectivity
-//	va=plogis(age,ahat,ghat);
-//	//Make some fish
-//	//initial numbers
-//	Nt(syr,1)=mfexp(log_rbar+wt(syr-1));
-//	for(int j=2;j<=nage;j++)Nt(syr,j)=mfexp(log_rbar+wt(syr-j))*lxo(j);
-//	ft=simF;
-//
-//	//p(l|a)
-//	dvector sdl=la*simcvgrow;
-//	//cout<<sdl<<endl;
-//	//ad_exit(1);
-//	dmatrix pla(1,nlbin,1,nage);
-//	dvector lbins(1,nlbin);
-//	lbins.fill_seqadd(minbin,stepbin*2.);
-//	double z1;
-//	double z2;
-//	pla.initialize();
-//	for(int i=1;i<=nage;i++) //loop over ages
-//	{
-//		 for(int j=1;j<=nlbin;j++) //loop over length bins
-//		{
-//			z1=((lbins(j)-stepbin)-la(i))/sdl(i);
-//			z2=((lbins(j)+stepbin)-la(i))/sdl(i);
-//			pla(j,i)=cumd_norm(z2)-cumd_norm(z1);
-//		}//end nbins
-//	}//end nage
-//	//cout<<pla<<endl;
-//	//ad_exit(1);
-//	for(int i=syr;i<=eyr;i++)
-//	{
-//		dvector ba=value(elem_prod(Nt(i),wa));
-//		Zt(i)=m+ft(i)*va;
-//		//update numbers
-//		double sbt=value(Nt(i)*fa);
-//		simqt(i)=simqo/(simao+(1.-simao)*sum(ba)/Bo);
-//		Nt(i+1,1)=so*sbt/(1.+beta*sbt)*mfexp(wt(i));
-//		Nt(i+1)(2,nage)=++elem_prod(Nt(i)(1,nage-1),mfexp(-Zt(i)(1,nage-1)));
-//		Nt(i+1,nage)+=Nt(i,nage)*mfexp(-Zt(i,nage));
-//		dvector zttmp=value(Zt(i));
-//		C(i)=elem_prod(elem_div(value(ft(i)*va),zttmp),elem_prod(1.-mfexp(-zttmp),value(Nt(i))));
-//		// get proportions at age in the catch
-//		dvector pa=C(i)/sum(C(i));
-//		// probability of being a length given any age
-//		dvector pl=pla*pa;
-//		//cout<<pl<<endl;
-//		//ad_exit(1);
-//		pl/=sum(pl);
-//		plt(i)=rmvlogistic(pl,0.3,rseed+i);
-//	}
-//	ct=C*wa;
-//	bt=Nt*elem_prod(wa,va);
-//	yt=elem_prod(simqt,value(elem_prod(bt(syr,eyr),mfexp(eps))));
-//	wt=0;
-//	//cout<<yt<<endl;
-//	//cout<<""<<endl;
-//	//cout<<ct<<endl;
-//	//cout<<""<<endl;
-//	//cout<<plt<<endl;
-//	//ad_exit(1);
-//
-//
-//
-FUNCTION void calc_partials(const double& fe, double& phie, double& phif, double& phiq, double& dphif_df, double& dphiq_df, double& dRe_df)
-//	//Use this function to calculate the partial derivatives (Table 2 in Martell et al. 2008)
-//	//Arguments: fe=fishing rate
-//	int i;
-//	dvector lx=(pow(exp(-m),age-1.));
-//	lx(nage)/=(1.-exp(-(m)));
-//	dvector lz(1,nage);
-//	dvector za=value(m+fe*va);
-//	dvector sa=1.-exp(-za);
-//	dvector qa=elem_prod(elem_div(value(va),za),sa);
-//	double dlz_df=0;
-//
-//	lz[1]=1.0; 
-//	dphiq_df=0; dphif_df=0;
-//	phie=(sum(elem_prod(lx,fa)));
-//	for(i=1; i<=nage; i++)
-//	{
-//		if(i>1) lz[i]=lz[i-1]*exp(-za[i-1]);
-//		if(i>1) dlz_df=dlz_df*exp(-za[i-1]) - lz[i-1]*value(va[i-1])*exp(-za[i-1]);
-//		if(i==nage){ //6/11/2007 added plus group.
-//			lz[i]/=(1.-mfexp(-za[i]));
-//			//dlz_df=dlz_df*mfexp(-za[i-1]) - lz[i-1]*va[i-1]*mfexp(-za[i-1])/(1.-mfexp(-za[i]))
-//			dlz_df=value(dlz_df/(1.-mfexp(-za[i]))
-//					-lz[i-1]*mfexp(-za[i-1])*va[i]*mfexp(-za[i])
-//			/((1.-mfexp(-za[i]))*(1.-mfexp(-za[i]))));
-//		}	
-//		dphif_df=dphif_df+(fa[i])*dlz_df;
-//		dphiq_df=dphiq_df+(wa[i]*qa[i]*dlz_df+(lz[i]*wa[i]*value(va[i]*va[i]))/za[i]*(exp(-za[i])-sa[i]/za[i]));
-//	}
-//	phif=sum(elem_prod(lz,(fa)));
-//	phiq=sum(elem_prod(elem_prod(lz,(wa)),qa));
-//	dRe_df=value(ro/(cr-1.))*phie/square(phif)*dphif_df;
-//	//dphif_df=sum(elem_prod(fa,dlz_df));
-//	//dvector t2=elem_div(elem_prod(elem_prod(lz,value(va)),wa),za);
-//	//dvector t3=exp(-za)-elem_div(sa,za);
-//	//dphiq_df=sum(elem_prod(elem_prod(wa,qa),dlz_df)+elem_prod(t2,t3));
-//
-//
-//
-FUNCTION void get_CF(double& fe, double& msy,double& bmsy)
-//	//This function uses Newton-Raphson method to iteratively solve for F*
-//	//Then calculates C* given F* (See eq 1.3 in Martell 2008 CJFAS)
-//	int iter;
-//	double dy,ddy,re;
-//	double phie,phif,phiq,dphif_df,dphiq_df,dRe_df;
-//	fe=(m);  //initial guess for Fmsy
-//	for(iter= 1; iter<=50; iter++)
-//	{
-//		calc_partials(fe,phie,phif,phiq,dphif_df,dphiq_df,dRe_df);
-//		re=value(ro*(cr-phie/phif)/(cr-1.));
-//		dy=re*phiq+fe*phiq*dRe_df+fe*re*dphiq_df;
-//		ddy=phiq*dRe_df+re*dphiq_df;
-//		//Newton update
-//		fe=fe-dy/ddy;
-//		if(sfabs(dy)<1.e-10)break;
-//		//cout<<"Fe dy\t"<<fe<<" "<<dy<<" "<<fe-dy/ddy<<endl;
-//	}
-//	msy=fe*re*phiq;
-//	bmsy=re*phif;
-//	//cout<<"Fe "<<fe<<endl;
-//
-//
-//
-//=============================================================================
-//FUNCTION dvar_vector sel_dhn(int minage, int maxage, dvariable full, dvariable varL, dvariable varR)
-//
-//  dvar_vector selection(minage,maxage);
-//  selection.initialize();
-//
-//  for (age=minage;age<=maxage;age++)
-//  {
-//	if (full>age)
-//	{
-//		selection(age)=exp(-1.0*(square(age-full))/varL);             
-//	}
-//	else
-//	{
-//		selection(age)=exp(-1.0*(square(age-full))/varR);             
-//	}
-//  }	
-//  selection = selection/max(selection);
-//  return(selection);
 
+
+//=============================================================================
 REPORT_SECTION
 	
+	
+	REPORT(syr)
+	REPORT(HSsyr)
+	REPORT(eyr)
 	
 	REPORT(RVq)
 	REPORT(RV_pred)
@@ -711,10 +564,32 @@ REPORT_SECTION
 	REPORT(OT_ct_hat)
 	REPORT(OTct)
 	
+	REPORT(LLM_ft)
+	REPORT(LLF_ft)
+	REPORT(OT_ft)
+	
 	REPORT(rbar)
 	REPORT(rt)
+
+	REPORT(tau)
+	REPORT(sig)
+	//REPORT(tau2)
+
+	REPORT(RV_va)
+	REPORT(HSM_va)
+	REPORT(HSF_va)
+	REPORT(OT_va)
+	REPORT(LLM_va)
+	REPORT(LLF_va)
 	
 
+	REPORT(pRVcatlen)
+	REPORT(pHSMcatlen)
+	REPORT(pHSFcatlen)
+
+	REPORT(pOTcatlen)
+	REPORT(pLLMcatlen)
+	REPORT(pLLFcatlen)
 
 	//double fmsy;
 	//double msy;

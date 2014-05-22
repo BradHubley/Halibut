@@ -46,7 +46,9 @@ class model_data : public ad_comm{
   data_number ifbar;
   data_number iahat;
   data_number ighat;
-  data_number nodes;
+  data_number ifull;
+  data_number iSDR;
+  data_number iSDL;
   data_int eof;
   int iter;
   dvector age;
@@ -107,19 +109,26 @@ private:
   param_init_number log_ro;
   param_init_number log_cr;
   param_init_number log_rbar;
+  param_init_bounded_dev_vector wt;
   param_init_number log_LLF_fbar;
   param_init_number log_LLM_fbar;
   param_init_number log_OT_fbar;
   param_init_bounded_dev_vector log_LLF_ft_dev;
   param_init_bounded_dev_vector log_LLM_ft_dev;
   param_init_bounded_dev_vector log_OT_ft_dev;
-  param_init_bounded_vector ina;
-  param_init_number ptdev;
-  param_init_bounded_number ahat;
-  param_init_bounded_number ghat;
+  param_init_bounded_number HSsel_half;
+  param_init_bounded_number HSsel_SD;
+  param_init_bounded_number RVsel_full;
+  param_init_bounded_number RVsel_SDR;
+  param_init_bounded_number RVsel_SDL;
+  param_init_bounded_number LLsel_half;
+  param_init_bounded_number LLsel_SD;
+  param_init_bounded_number OTsel_full;
+  param_init_bounded_number OTsel_SDR;
+  param_init_bounded_number OTsel_SDL;
   param_init_bounded_number rho;
   param_init_bounded_number cvgrow;
-  param_init_bounded_dev_vector wt;
+  param_init_number ptdev;
   param_number prior_function_value;
   param_number likelihood_function_value;
   objective_function_value ofv;
@@ -187,11 +196,10 @@ public:
   void observation_model(void);
   void stock_recruit_model(void);
   void objective_function(void);
+ dvar_vector sel_dhn(const int& minage, const int& maxage, dvariable& full, dvariable& varR, dvariable& varL);
   void mcmc_output(void);
   void forecast(void);
   void run_data_simulation(void);
- void calc_partials(const double& fe, double& phie, double& phif, double& phiq, double& dphif_df, double& dphiq_df, double& dRe_df);
- void get_CF(double& fe, double& msy,double& bmsy);
 
 };
 #endif

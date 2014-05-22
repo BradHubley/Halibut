@@ -224,11 +224,16 @@
 12000
 #ifbar
 0.2
+## Selectivity
 #iahat
-5.5
+5
 #ighat
 0.15
-#nodes
-10
+#full
+3
+#varR
+4
+#varL
+0.5
 #eof
 999
