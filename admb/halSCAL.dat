@@ -16,6 +16,8 @@
 10
 #stepbin
 3
+#like_weights
+10 10 10 5 5 0 1 1 1 1 1 1
 
 ## SURVEY data ##
 # RVindex (from dfo summer RV survey, stratified population estimate i.e. bumped up total # of fish)
@@ -217,13 +219,13 @@
 
 ## INITIALIZATION parameters ##
 #iro
-12000
+1200000
 #icr
 10
 #irbar
-12000
+1200000
 #ifbar
-0.2
+0.3
 ## Selectivity
 #iahat
 5

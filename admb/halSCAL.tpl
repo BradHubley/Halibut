@@ -32,6 +32,7 @@ DATA_SECTION
 	init_int nlbin2;
 	init_number minbin;
 	init_number stepbin;
+	init_vector like_weight(1,12);				// weighting vector for likelihood (ala KT)	
 	
 	// Survey data
 	init_vector RVindex(syr,eyr);				// summer RV survey index in stratified total numbers	
@@ -151,15 +152,15 @@ PARAMETER_SECTION
 	init_number log_ro(4);
 	init_number log_cr(5);
 	init_number log_rbar;
-	init_bounded_dev_vector wt(syr-nage,eyr,-10.,10.,2);
+	init_bounded_dev_vector wt(syr-nage,eyr,-10.,10.,3);
 	
 	// Fishing mortalities
 	init_number log_LLF_fbar;
 	init_number log_LLM_fbar;
 	init_number log_OT_fbar;
-	init_bounded_dev_vector log_LLF_ft_dev(syr,eyr,-10.,10.,3);
-	init_bounded_dev_vector log_LLM_ft_dev(syr,eyr,-10.,10.,3);
-	init_bounded_dev_vector log_OT_ft_dev(syr,eyr,-10.,10.,3);
+	init_bounded_dev_vector log_LLF_ft_dev(syr,eyr,-10.,10.,2);
+	init_bounded_dev_vector log_LLM_ft_dev(syr,eyr,-10.,10.,2);
+	init_bounded_dev_vector log_OT_ft_dev(syr,eyr,-10.,10.,2);
 	
 	// Selectivities
 	init_bounded_number HSsel_half(0,nage,4);
@@ -175,7 +176,7 @@ PARAMETER_SECTION
 	init_bounded_number OTsel_SDL(0,5,4);
 	
 	
-	init_bounded_number rho(0,1);
+	init_bounded_number rho(0,1,-1);
 	init_bounded_number cvgrow(0,1);
 	
 	init_number ptdev;
@@ -252,11 +253,11 @@ PARAMETER_SECTION
 	matrix F_alk(1,nlbin,1,nage);
 	matrix M_alk(1,nlbin,1,nage);
 	matrix RV_plhat(syr,eyr,1,nlbin);
-	matrix HSM_plhat(syr,eyr,1,nlbin);
-	matrix HSF_plhat(syr,eyr,1,nlbin);
-	matrix OT_plhat(syr,eyr,1,nlbin);
-	matrix LLM_plhat(syr,eyr,1,nlbin);
-	matrix LLF_plhat(syr,eyr,1,nlbin);
+	matrix HSM_plhat(HSsyr,eyr,1,nlbin);
+	matrix HSF_plhat(HSsyr,eyr,1,nlbin);
+	matrix OT_plhat(OTsyr,eyr,1,nlbin);
+	matrix LLM_plhat(LLsyr,eyr,1,nlbin);
+	matrix LLF_plhat(LLsyr,eyr,1,nlbin);
 
 PRELIMINARY_CALCS_SECTION
 //  if(sim)
@@ -301,7 +302,7 @@ FUNCTION initialization
 	OT_ft=mfexp(log_OT_fbar+log_OT_ft_dev);
 	M_Fat=outer_prod(LLM_ft,LLM_va);
 	F_Fat=outer_prod(LLF_ft,LLF_va);
-	OT_Fat=outer_prod(OT_ft,OT_va)*0.5;
+	OT_Fat=outer_prod(OT_ft,OT_va);
 
 	// total mortality
 	M_Zat=mM+M_Fat+OT_Fat;
@@ -408,22 +409,17 @@ FUNCTION observation_model
 	
 	for(int i=syr;i<=eyr;i++)
 	{
-		// longline females
-		paF=LLFC(i);
-		plF=F_alk*paF;
-		LLF_plhat(i)=plF/sum(plF);
-		// longline males
-		paM=LLMC(i);
+		// RV survey
+		paM=elem_prod(M_Nat(i),RV_va);
 		plM=M_alk*paM;
-		LLM_plhat(i)=plM/sum(plM);
-		// otter trawl
-		paM=OTMC(i);
-		plM=M_alk*paM;
-		paF=OTFC(i);
+		paF=elem_prod(F_Nat(i),RV_va);
 		plF=F_alk*paF;
 		pl=plF+plM;
-		OT_plhat(i)=pl/sum(pl);
-		
+		RV_plhat(i)=pl/sum(pl);
+	}
+	
+	for(int i=HSsyr;i<=eyr;i++)
+	{
 		// halibut survey females
 		paF=elem_prod(F_Nat(i),HSF_va);
 		plF=F_alk*paF;
@@ -432,13 +428,29 @@ FUNCTION observation_model
 		paM=elem_prod(M_Nat(i),HSM_va);
 		plM=M_alk*paM;
 		HSM_plhat(i)=plM/sum(plM);
-		// RV survey
-		paM=elem_prod(M_Nat(i),RV_va);
+		}
+	
+	for(int i=LLsyr;i<=eyr;i++)
+	{
+		// longline females
+		paF=LLFC(i);
+		plF=F_alk*paF;
+		LLF_plhat(i)=plF/sum(plF);
+		// longline males
+		paM=LLMC(i);
 		plM=M_alk*paM;
-		paF=elem_prod(F_Nat(i),RV_va);
+		LLM_plhat(i)=plM/sum(plM);
+	}
+	
+	for(int i=OTsyr;i<=eyr;i++)
+	{
+		// otter trawl
+		paM=OTMC(i);
+		plM=M_alk*paM;
+		paF=OTFC(i);
 		plF=F_alk*paF;
 		pl=plF+plM;
-		RV_plhat(i)=pl/sum(pl);
+		OT_plhat(i)=pl/sum(pl);
 	}
 
 FUNCTION stock_recruit_model
@@ -468,18 +480,18 @@ FUNCTION objective_function
 	double pmin=0.0025;
 	
 	nll_vec.initialize();
-	nll_vec(1)=dnorm(LLF_ct_resid,0.05);
-	nll_vec(2)=dnorm(LLF_ct_resid,0.05);
-	nll_vec(3)=dnorm(OT_ct_resid,0.05);
+	nll_vec(1)=dnorm(LLF_ct_resid,0.1);
+	nll_vec(2)=dnorm(LLF_ct_resid,0.1);
+	nll_vec(3)=dnorm(OT_ct_resid,0.1);
 	nll_vec(4)=dnorm(RV_resid,tau);
 	nll_vec(5)=dnorm(HS_resid,tau);
 	nll_vec(6)=dnorm(rt_resid,sig);
-	nll_vec(7)=dmvlogistic(RVcatlen,RV_plhat,nu,tau2,pmin);
-	nll_vec(8)=dmvlogistic(HSMcatlen,HSM_plhat,nu,tau2,pmin);
-	nll_vec(9)=dmvlogistic(HSFcatlen,HSF_plhat,nu,tau2,pmin);
-	nll_vec(10)=dmvlogistic(OTcatlen,OT_plhat,nu,tau2,pmin);
-	nll_vec(11)=dmvlogistic(LLMcatlen,LLM_plhat,nu,tau2,pmin);
-	nll_vec(12)=dmvlogistic(LLFcatlen,LLF_plhat,nu,tau2,pmin);
+	nll_vec(7)=dmvlogistic(pRVcatlen,RV_plhat,nu,tau2,pmin);
+	nll_vec(8)=dmvlogistic(pHSMcatlen,HSM_plhat,nu,tau2,pmin);
+	nll_vec(9)=dmvlogistic(pHSFcatlen,HSF_plhat,nu,tau2,pmin);
+	nll_vec(10)=dmvlogistic(pOTcatlen,OT_plhat,nu,tau2,pmin);
+	nll_vec(11)=dmvlogistic(pLLMcatlen,LLM_plhat,nu,tau2,pmin);
+	nll_vec(12)=dmvlogistic(pLLFcatlen,LLF_plhat,nu,tau2,pmin);
 	
 	//cout<<tau2<<endl;
 	//ad_exit(1);
@@ -502,7 +514,13 @@ FUNCTION objective_function
 	p_vec(5)=dbeta(rho,50,50);
 	
 	
-	ofv=sum(nll_vec);	//+sum(p_vec);
+
+    for(int i=1;i<=12;i++)
+     {
+     ofv+= nll_vec(i)*like_weight(i);
+     }
+
+	//ofv=sum(nll_vec);	//+sum(p_vec);
 
 FUNCTION dvar_vector sel_dhn(const int& minage, const int& maxage, dvariable& full, dvariable& varR, dvariable& varL)
 	
@@ -545,51 +563,95 @@ FUNCTION run_data_simulation
 //=============================================================================
 REPORT_SECTION
 	
-	
-	REPORT(syr)
-	REPORT(HSsyr)
-	REPORT(eyr)
-	
-	REPORT(RVq)
-	REPORT(RV_pred)
-	REPORT(RVindex)
-	REPORT(HSq)
-	REPORT(HS_pred)
-	REPORT(HSindex)
+	// Data
+	REPORT(syr);
+	REPORT(eyr);
+	REPORT(nage);
+	REPORT(nsexes);
+	REPORT(nlbin);
+	REPORT(nlbin2);
+	REPORT(minbin);
+	REPORT(stepbin);
+	REPORT(RVindex);
+	REPORT(RVcatlen);
+	REPORT(HSsyr);
+	REPORT(HSindex);
+	REPORT(HSMcatlen);
+	REPORT(HSFcatlen);
+	REPORT(LLctM);
+	REPORT(LLctF);
+	REPORT(OTct);
+	REPORT(LLsyr);
+	REPORT(LLMcatlen);
+	REPORT(LLFcatlen);
+	REPORT(OTsyr);
+	REPORT(OTcatlen);
+	REPORT(lwa);
+	REPORT(lwb);
+	REPORT(linf);
+	REPORT(vbk);
+	REPORT(t0);
+	REPORT(laaM);
+	REPORT(laaF);
+	REPORT(laaM_sigma);
+	REPORT(laaF_sigma);
+	REPORT(mata);
+	REPORT(matb);
 
-	REPORT(LLF_ct_hat)
-	REPORT(LLctF)
-	REPORT(LLM_ct_hat)
-	REPORT(LLctM)
-	REPORT(OT_ct_hat)
-	REPORT(OTct)
+	// Output
+	REPORT(F_Nat);
+	REPORT(M_Nat);
 	
-	REPORT(LLM_ft)
-	REPORT(LLF_ft)
-	REPORT(OT_ft)
-	
-	REPORT(rbar)
-	REPORT(rt)
+	// selectivity
+	REPORT(RV_va);
+	REPORT(HSM_va);
+	REPORT(HSF_va);
+	REPORT(OT_va);
+	REPORT(LLM_va);
+	REPORT(LLF_va);
 
-	REPORT(tau)
-	REPORT(sig)
-	//REPORT(tau2)
+	// fishing mortalities
+	REPORT(LLM_ft);
+	REPORT(LLF_ft);
+	REPORT(OT_ft);
+	REPORT(F_Zat);
+	REPORT(M_Zat);
+	REPORT(F_Fat);
+	REPORT(M_Fat);
+	REPORT(OT_Fat);
 
-	REPORT(RV_va)
-	REPORT(HSM_va)
-	REPORT(HSF_va)
-	REPORT(OT_va)
-	REPORT(LLM_va)
-	REPORT(LLF_va)
-	
+	// recruitment
+	REPORT(rbar);
+	REPORT(rt);
+	REPORT(wt);
 
-	REPORT(pRVcatlen)
-	REPORT(pHSMcatlen)
-	REPORT(pHSFcatlen)
+	// error terms
+	REPORT(tau);
+	REPORT(sig);
+	REPORT(rho);
 
-	REPORT(pOTcatlen)
-	REPORT(pLLMcatlen)
-	REPORT(pLLFcatlen)
+	// predicted indices
+	REPORT(RVq);
+	REPORT(RV_pred);
+	REPORT(HSq);
+	REPORT(HS_pred);
+	REPORT(LLF_ct_hat);
+	REPORT(LLM_ct_hat);
+	REPORT(OT_ct_hat);
+
+	// proportions at length
+	REPORT(pRVcatlen);
+	REPORT(pHSMcatlen);
+	REPORT(pHSFcatlen);
+	REPORT(pOTcatlen);
+	REPORT(pLLMcatlen);
+	REPORT(pLLFcatlen);
+	REPORT(RV_plhat);
+	REPORT(HSM_plhat);
+	REPORT(HSF_plhat);
+	REPORT(OT_plhat);
+	REPORT(LLM_plhat);
+	REPORT(LLF_plhat);
 
 	//double fmsy;
 	//double msy;

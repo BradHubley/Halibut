@@ -12,6 +12,7 @@ class model_data : public ad_comm{
   data_int nlbin2;
   data_number minbin;
   data_number stepbin;
+  data_vector like_weight;
   data_vector RVindex;
   data_matrix RVcatlen;
   data_int HSsyr;
