@@ -147,11 +147,9 @@ private:
   param_number bmsy;
   param_number sig;
   param_number tau;
-  param_vector HSM_va;
-  param_vector HSF_va;
+  param_vector HS_va;
   param_vector RV_va;
-  param_vector LLM_va;
-  param_vector LLF_va;
+  param_vector LL_va;
   param_vector OT_va;
   param_vector LLM_ft;
   param_vector LLF_ft;

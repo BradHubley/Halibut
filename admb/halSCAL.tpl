@@ -218,11 +218,9 @@ PARAMETER_SECTION
 	number sig;
 	number tau;
 
-	vector HSM_va(1,nage);
-	vector HSF_va(1,nage);
+	vector HS_va(1,nage);
 	vector RV_va(1,nage);
-	vector LLM_va(1,nage);
-	vector LLF_va(1,nage);
+	vector LL_va(1,nage);
 	vector OT_va(1,nage);
 	vector LLM_ft(syr,eyr);
 	vector LLF_ft(syr,eyr);
@@ -288,20 +286,18 @@ FUNCTION initialization
 	
 	// vulnerabilities-at-age (survey)
 	RV_va=sel_dhn(1,nage,RVsel_full,RVsel_SDR,RVsel_SDL);
-	HSM_va=plogis(age,HSsel_half,HSsel_SD);
-	HSF_va=plogis(age,HSsel_half,HSsel_SD);
+	HS_va=plogis(age,HSsel_half,HSsel_SD);
 	
 	// vulnerabilities-at-age (fishery)
-	LLM_va=plogis(age,LLsel_half,LLsel_SD);
-	LLF_va=plogis(age,LLsel_half,LLsel_SD);
+	LL_va=plogis(age,LLsel_half,LLsel_SD);
 	OT_va=sel_dhn(1,nage,OTsel_full,OTsel_SDR,OTsel_SDL);
 	
 	// fishing mortality 
 	LLM_ft=mfexp(log_LLM_fbar+log_LLM_ft_dev);
 	LLF_ft=mfexp(log_LLF_fbar+log_LLF_ft_dev);
 	OT_ft=mfexp(log_OT_fbar+log_OT_ft_dev);
-	M_Fat=outer_prod(LLM_ft,LLM_va);
-	F_Fat=outer_prod(LLF_ft,LLF_va);
+	M_Fat=outer_prod(LLM_ft,LL_va);
+	F_Fat=outer_prod(LLF_ft,LL_va);
 	OT_Fat=outer_prod(OT_ft,OT_va);
 
 	// total mortality
@@ -323,7 +319,7 @@ FUNCTION statedynamics
 		M_Nat(i+1)(2,nage)=++elem_prod(M_Nat(i)(1,nage-1),mfexp(-M_Zat(i)(1,nage-1)));
 		M_Nat(i+1,nage)+=M_Nat(i,nage)*mfexp(-M_Zat(i,nage));
 	}
-	M_bt=M_Nat*elem_prod(waM,LLM_va);
+	M_bt=M_Nat*elem_prod(waM,LL_va);
 
 	// Females
 	dvar_vector lxoF=pow(mfexp(-mF),age-1.);
@@ -336,7 +332,7 @@ FUNCTION statedynamics
 		F_Nat(i+1)(2,nage)=++elem_prod(F_Nat(i)(1,nage-1),mfexp(-F_Zat(i)(1,nage-1)));
 		F_Nat(i+1,nage)+=F_Nat(i,nage)*mfexp(-F_Zat(i,nage));
 	}
-	F_bt=F_Nat*elem_prod(waF,LLF_va);
+	F_bt=F_Nat*elem_prod(waF,LL_va);
 
 
 FUNCTION observation_model
@@ -346,12 +342,12 @@ FUNCTION observation_model
 	dvar_matrix LLMC(syr,eyr,1,nage);
 	LLMC=elem_prod(elem_div(M_Fat,M_Zat),elem_prod(1.-mfexp(-M_Zat),M_Nat));
 	LLM_ct_hat=LLMC*waM/1000;
-	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
+	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
 	// longline females
 	dvar_matrix LLFC(syr,eyr,1,nage);
 	LLFC=elem_prod(elem_div(F_Fat,F_Zat),elem_prod(1.-mfexp(-F_Zat),F_Nat));
 	LLF_ct_hat=LLFC*waF/1000;
-	LLM_ct_resid=log(LLctM)-log(LLM_ct_hat);
+	LLF_ct_resid=log(LLctF)-log(LLF_ct_hat);
 	// ottertrawl
 	dvar_matrix OTMC(syr,eyr,1,nage);
 	dvar_matrix OTFC(syr,eyr,1,nage);
@@ -366,8 +362,9 @@ FUNCTION observation_model
 	RV_resid=log(RVindex)-log(RV_pred(syr,eyr));
 	RVq=mfexp(mean(RV_resid));
 	RV_resid-=mean(RV_resid);
+	
 	//HS residuals (walters and ludwig 1994)
-	HS_pred=(F_Nat*HSF_va+M_Nat*HSM_va);
+	HS_pred=(F_Nat*HS_va+M_Nat*HS_va);
 	HS_resid=log(HSindex)-log(HS_pred(HSsyr,eyr));
 	HSq=mfexp(mean(HS_resid));
 	HS_resid-=mean(HS_resid);
@@ -421,11 +418,11 @@ FUNCTION observation_model
 	for(int i=HSsyr;i<=eyr;i++)
 	{
 		// halibut survey females
-		paF=elem_prod(F_Nat(i),HSF_va);
+		paF=elem_prod(F_Nat(i),HS_va);
 		plF=F_alk*paF;
 		HSF_plhat(i)=plF/sum(plF);
 		// halibut survey males
-		paM=elem_prod(M_Nat(i),HSM_va);
+		paM=elem_prod(M_Nat(i),HS_va);
 		plM=M_alk*paM;
 		HSM_plhat(i)=plM/sum(plM);
 		}
@@ -499,17 +496,22 @@ FUNCTION objective_function
 	// Priors
 	dvar_vector p_vec(1,5);
 	dvariable h=cr/(4.+cr);
+	//dvariable nll;
 	p_vec.initialize();
 	p_vec(1)=dbeta((h-0.2)/0.8,2,2);
 	if(last_phase())
 	{
 		p_vec(3)=dnorm(wt,2);
 		p_vec(4)=dnorm(log_LLF_ft_dev,2);
+		//p_vec(5)=dnorm(log_LLM_ft_dev,2);
+		//p_vec(6)=dnorm(log_OT_ft_dev,2);
 	}
 	else
 	{
 		p_vec(3)=100.*norm2(wt);
 		p_vec(4)=100.*norm2(log_LLF_ft_dev);
+		//p_vec(5)=100.*norm2(log_LLM_ft_dev);
+		//p_vec(6)=100.*norm2(log_OT_ft_dev);
 	}
 	p_vec(5)=dbeta(rho,50,50);
 	
@@ -604,11 +606,11 @@ REPORT_SECTION
 	
 	// selectivity
 	REPORT(RV_va);
-	REPORT(HSM_va);
-	REPORT(HSF_va);
+	REPORT(HS_va);
+	REPORT(HS_va);
 	REPORT(OT_va);
-	REPORT(LLM_va);
-	REPORT(LLF_va);
+	REPORT(LL_va);
+	REPORT(LL_va);
 
 	// fishing mortalities
 	REPORT(LLM_ft);

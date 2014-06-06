@@ -59,7 +59,7 @@ DATA_SECTION
 	vector fa(1,nage);
 	number m;
 	LOCAL_CALCS
-		m=0.02;
+		m=1.2*vbk;
 		age.fill_seqadd(1,1);
 		la=linf*(1.-mfexp(-vbk*age));
 		wa=wla*pow(la,wlb);
@@ -164,7 +164,6 @@ PROCEDURE_SECTION
 
 FUNCTION initialization
 	va=plogis(age,ahat,ghat);
-	va(1)=0;
 	ft=mfexp(log_fbar+log_ft_dev);
 	Zt=m+outer_prod(ft,va);
 
@@ -187,16 +186,6 @@ FUNCTION observation_model
 	F=outer_prod(ft,va);
 	C=elem_prod(elem_div(F,Zt),elem_prod(1.-mfexp(-Zt),Nt));
 	ct_hat=C*wa;
-			cout<<va<<endl;
-			cout<<F<<endl;
-			cout<<Zt<<endl;
-			cout<<elem_div(F,Zt)<<endl;
-			cout<<elem_prod(1.-mfexp(-Zt),Nt)<<endl;
-			cout<<'C'<<endl;
-			cout<<C<<endl;
-			cout<<ct<<endl;
-			cout<<ft<<endl;
-			ad_exit(1);
 	//catch residuals
 	ct_resid=log(ct)-log(ct_hat);
 	//cpue residuals ala waters and ludwig 1994

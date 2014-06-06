@@ -1,23 +1,23 @@
- setwd("C:/Halibut/Brad")
+setwd("C:/Halibut/Brad")
+source("fn/getRVdata.r")
+RVdata<-getRVdata()
 
- source("fn/getRVdata.r")
- RVdata<-getRVdata()
+source("fn/prepRVdata.r")
+RVinput<-prepRVdata(RVdata)
+ 
+source("fn/write.dat.R")
+write.dat(RVinput[3],"RVcatlen.dat")
+write.table(RVinput$RVcatlenC, file = "RVcatlen.dat", sep = "\t",row.names = F, quote = F)
 
- source("fn/prepRVdata.r")
- RVinput<-prepRVdata(RVdata)
- 
- source("fn/write.dat.R")
- write.dat(RVinput[3],"RVcatlen.dat")
- write.table(RVinput$RVcatlenC, file = "RVcatlen.dat", sep = "\t",row.names = F, quote = F)
+setwd(" C:/Users/HubleyB/Documents/GitHub/Halibut")
 
- 
- 
- source("fn/read.admb.r")
- output<-read.admb("admb/vpop10")
+source("fn/read.admb.r")
+output <- read.admb("admb/halscal")
   
  
- setwd("C:/Halibut/halibut admb model")
- #system("vpop10")
+
+setwd("C:/Halibut/halibut admb model")
+#system("vpop10")
  
  
 	source("README.KT.r")

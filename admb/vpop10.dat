@@ -54,7 +54,7 @@
 # remember to turn on or off the Mort pars
 1
 #init_int N1opt //1=on (estimated),0=off (equilibrium unfished = starting pop, turn off N1), 2=read in recruitment from .dat
-3
+1
 #
 #  // ** Priors **       
 #  //Phase -1 is not estimate i.e. fixed
